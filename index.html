@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>月費統計器</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a1a;color:#e0e0e0;min-height:100vh}
+.header{background:linear-gradient(135deg,#0f0c29,#302b63);padding:20px 24px;border-bottom:1px solid rgba(255,255,255,0.08)}
+.header h1{font-size:1.3em;background:linear-gradient(90deg,#f59e0b,#fbbf24);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header .total{font-size:2rem;font-weight:700;color:#fbbf24;margin-top:8px}
+.header .sub{font-size:.85rem;color:#888;margin-top:4px}
+
+.content{max-width:800px;margin:0 auto;padding:16px}
+
+.summary{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:20px}
+.card{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px;text-align:center}
+.card .label{font-size:.72em;color:#888;margin-bottom:4px}
+.card .value{font-size:1.1em;font-weight:700}
+
+.add-bar{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;align-items:center}
+.add-bar input,.add-bar select{padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.08);color:#fff;font-size:.88em}
+.add-bar input::placeholder{color:#666}
+.add-bar input[type="number"]{width:90px}
+.btn{padding:8px 16px;border:none;border-radius:8px;font-size:.88em;font-weight:600;cursor:pointer;transition:all .15s}
+.btn-add{background:linear-gradient(135deg,#f59e0b,#fbbf24);color:#000}
+.btn-add:hover{transform:translateY(-1px)}
+.btn-danger{background:transparent;border:1px solid #f87171;color:#f87171;padding:4px 10px;font-size:.75em;border-radius:6px;cursor:pointer}
+.btn-danger:hover{background:#f87171;color:#fff}
+.btn-edit{background:transparent;border:1px solid #67e8f9;color:#67e8f9;padding:4px 10px;font-size:.75em;border-radius:6px;cursor:pointer}
+.btn-edit:hover{background:#67e8f9;color:#000}
+
+.sub-list{margin-bottom:20px}
+.sub-item{display:flex;align-items:center;gap:12px;padding:12px 16px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;margin-bottom:8px;transition:all .2s}
+.sub-item:hover{background:rgba(255,255,255,0.06)}
+.sub-icon{font-size:1.5rem;width:40px;text-align:center}
+.sub-info{flex:1}
+.sub-name{font-weight:600;font-size:.95em}
+.sub-detail{font-size:.78em;color:#888;margin-top:2px}
+.sub-price{text-align:right}
+.sub-amount{font-size:1.1em;font-weight:700;color:#fbbf24}
+.sub-monthly{font-size:.72em;color:#888;margin-top:2px}
+.sub-actions{display:flex;gap:4px}
+
+.chart-area{max-width:350px;margin:0 auto 20px}
+.section-title{font-size:.95em;color:#888;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.08)}
+
+.cat-tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.7em;font-weight:600}
+
+.filter-bar{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.filter-btn{padding:4px 12px;border:1px solid rgba(255,255,255,0.15);border-radius:6px;background:rgba(255,255,255,0.06);color:#aaa;cursor:pointer;font-size:.8em}
+.filter-btn.active{background:rgba(251,191,36,0.2);color:#fbbf24;border-color:#fbbf24}
+
+.empty{text-align:center;color:#666;padding:40px;font-size:.9em}
+
+@media(max-width:600px){
+  .add-bar{flex-direction:column}
+  .add-bar input,.add-bar select{width:100%}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>💳 月費統計器</h1>
+  <div class="total" id="totalMonthly">$0</div>
+  <div class="sub" id="totalSub">0 項訂閱</div>
+</div>
+
+<div class="content">
+  <div class="summary" id="summaryCards"></div>
+
+  <div class="add-bar">
+    <select id="presetSelect" onchange="applyPreset()" style="flex:1;min-width:140px;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.08);color:#fff;font-size:.88em">
+      <option value="">— 選擇常見服務或自訂 —</option>
+      <optgroup label="🎬 影音">
+        <option value="Netflix|390|monthly|video|TWD">Netflix 標準 (NT$390/月)</option>
+        <option value="Netflix Premium|790|monthly|video|TWD">Netflix 高級 (NT$790/月)</option>
+        <option value="Disney+|270|monthly|video|TWD">Disney+ (NT$270/月)</option>
+        <option value="YouTube Premium|179|monthly|video|TWD">YouTube Premium (NT$179/月)</option>
+        <option value="YouTube Premium 家庭|329|monthly|video|TWD">YouTube Premium 家庭 (NT$329/月)</option>
+        <option value="Apple TV+|270|monthly|video|TWD">Apple TV+ (NT$270/月)</option>
+        <option value="HBO GO|150|monthly|video|TWD">HBO GO (NT$150/月)</option>
+        <option value="friDay影音|199|monthly|video|TWD">friDay影音 (NT$199/月)</option>
+        <option value="KKTV|149|monthly|video|TWD">KKTV (NT$149/月)</option>
+        <option value="LiTV|199|monthly|video|TWD">LiTV (NT$199/月)</option>
+      </optgroup>
+      <optgroup label="🎵 音樂">
+        <option value="Spotify|149|monthly|music|TWD">Spotify 個人 (NT$149/月)</option>
+        <option value="Spotify 家庭|240|monthly|music|TWD">Spotify 家庭 (NT$240/月)</option>
+        <option value="Apple Music|150|monthly|music|TWD">Apple Music 個人 (NT$150/月)</option>
+        <option value="Apple Music 家庭|250|monthly|music|TWD">Apple Music 家庭 (NT$250/月)</option>
+        <option value="KKBOX|149|monthly|music|TWD">KKBOX (NT$149/月)</option>
+      </optgroup>
+      <optgroup label="☁️ 雲端/工具">
+        <option value="iCloud+ 50GB|30|monthly|cloud|TWD">iCloud+ 50GB (NT$30/月)</option>
+        <option value="iCloud+ 200GB|90|monthly|cloud|TWD">iCloud+ 200GB (NT$90/月)</option>
+        <option value="iCloud+ 2TB|300|monthly|cloud|TWD">iCloud+ 2TB (NT$300/月)</option>
+        <option value="Google One 100GB|65|monthly|cloud|TWD">Google One 100GB (NT$65/月)</option>
+        <option value="Google One 2TB|330|monthly|cloud|TWD">Google One 2TB (NT$330/月)</option>
+        <option value="Dropbox Plus|9.99|monthly|cloud|USD">Dropbox Plus ($9.99/月)</option>
+        <option value="Microsoft 365|2190|yearly|tools|TWD">Microsoft 365 (NT$2,190/年)</option>
+        <option value="Notion Plus|10|monthly|tools|USD">Notion Plus ($10/月)</option>
+        <option value="ChatGPT Plus|20|monthly|tools|USD">ChatGPT Plus ($20/月)</option>
+        <option value="Claude Pro|20|monthly|tools|USD">Claude Pro ($20/月)</option>
+        <option value="Claude Max|100|monthly|tools|USD">Claude Max ($100/月)</option>
+        <option value="Gemini Advanced|19.99|monthly|tools|USD">Gemini Advanced ($19.99/月)</option>
+        <option value="GitHub Copilot|10|monthly|tools|USD">GitHub Copilot ($10/月)</option>
+        <option value="Canva Pro|4190|yearly|tools|TWD">Canva Pro (NT$4,190/年)</option>
+      </optgroup>
+      <optgroup label="🎮 娛樂/遊戲">
+        <option value="Nintendo Switch Online|140|yearly|entertainment|TWD">NSO (NT$140/年)</option>
+        <option value="PS Plus Essential|1180|yearly|entertainment|TWD">PS Plus Essential (NT$1,180/年)</option>
+        <option value="Xbox Game Pass|339|monthly|entertainment|TWD">Xbox Game Pass (NT$339/月)</option>
+        <option value="Apple Arcade|200|monthly|entertainment|TWD">Apple Arcade (NT$200/月)</option>
+      </optgroup>
+      <optgroup label="📰 新聞/閱讀">
+        <option value="Readmoo 讀墨|149|monthly|news|TWD">Readmoo 吃到飽 (NT$149/月)</option>
+        <option value="天下雜誌|399|monthly|news|TWD">天下雜誌 (NT$399/月)</option>
+        <option value="Hami書城|99|monthly|news|TWD">Hami書城 (NT$99/月)</option>
+      </optgroup>
+      <optgroup label="💪 健康">
+        <option value="Peloton|12.99|monthly|health|USD">Peloton ($12.99/月)</option>
+        <option value="Strava|5|monthly|health|USD">Strava ($5/月)</option>
+      </optgroup>
+      <optgroup label="🏠 生活">
+        <option value="中華電信 499|499|monthly|life|TWD">中華電信 499 (NT$499/月)</option>
+        <option value="中華電信 699|699|monthly|life|TWD">中華電信 699 (NT$699/月)</option>
+        <option value="中華電信 999|999|monthly|life|TWD">中華電信 999 (NT$999/月)</option>
+        <option value="台灣大哥大 599|599|monthly|life|TWD">台灣大哥大 599 (NT$599/月)</option>
+        <option value="遠傳 499|499|monthly|life|TWD">遠傳 499 (NT$499/月)</option>
+      </optgroup>
+    </select>
+    <input type="text" id="addName" placeholder="或自訂名稱" style="flex:1;min-width:100px">
+    <input type="number" id="addAmount" placeholder="金額" step="1" min="0">
+    <select id="addCycle">
+      <option value="monthly">每月</option>
+      <option value="quarterly">每季</option>
+      <option value="yearly">每年</option>
+      <option value="weekly">每週</option>
+    </select>
+    <select id="addCategory">
+      <option value="entertainment">娛樂</option>
+      <option value="tools">工具</option>
+      <option value="cloud">雲端</option>
+      <option value="music">音樂</option>
+      <option value="video">影音</option>
+      <option value="news">新聞</option>
+      <option value="health">健康</option>
+      <option value="work">工作</option>
+      <option value="life">生活</option>
+      <option value="other">其他</option>
+    </select>
+    <select id="addCurrency">
+      <option value="TWD">TWD</option>
+      <option value="USD">USD</option>
+      <option value="JPY">JPY</option>
+    </select>
+    <input type="number" id="addDay" placeholder="扣款日" min="1" max="31" style="width:70px">
+    <button class="btn btn-add" onclick="addSubscription()">＋ 新增</button>
+  </div>
+
+  <div class="filter-bar" id="filterBar"></div>
+
+  <div class="section-title">📋 訂閱清單</div>
+  <div class="sub-list" id="subList"></div>
+
+  <div class="section-title">📊 分類佔比</div>
+  <div class="chart-area"><canvas id="pieChart"></canvas></div>
+
+  <div class="section-title">📅 月曆（扣款日）</div>
+  <div id="calendarArea"></div>
+</div>
+
+<script>
+const CATEGORIES = {
+  entertainment: { label: '娛樂', color: '#f59e0b', icon: '🎮' },
+  tools: { label: '工具', color: '#3b82f6', icon: '🔧' },
+  cloud: { label: '雲端', color: '#67e8f9', icon: '☁️' },
+  music: { label: '音樂', color: '#a78bfa', icon: '🎵' },
+  video: { label: '影音', color: '#f87171', icon: '🎬' },
+  news: { label: '新聞', color: '#34d399', icon: '📰' },
+  health: { label: '健康', color: '#fb923c', icon: '💪' },
+  work: { label: '工作', color: '#60a5fa', icon: '💼' },
+  life: { label: '生活', color: '#fbbf24', icon: '🏠' },
+  other: { label: '其他', color: '#9ca3af', icon: '📦' }
+};
+
+const RATES = { TWD: 1, USD: 32, JPY: 0.22 }; // rough rates to TWD
+
+let subs = [];
+let filterCat = '';
+let chartInstance = null;
+
+function load() {
+  try { subs = JSON.parse(localStorage.getItem('subscriptions') || '[]'); } catch(e) { subs = []; }
+}
+
+function save() {
+  localStorage.setItem('subscriptions', JSON.stringify(subs));
+}
+
+function toMonthly(amount, cycle, currency) {
+  const twd = amount * (RATES[currency] || 1);
+  if (cycle === 'weekly') return twd * 4.33;
+  if (cycle === 'quarterly') return twd / 3;
+  if (cycle === 'yearly') return twd / 12;
+  return twd;
+}
+
+function fmtMoney(n) { return 'NT$' + Math.round(n).toLocaleString(); }
+
+function cycleLabel(c) {
+  return { monthly: '每月', quarterly: '每季', yearly: '每年', weekly: '每週' }[c] || c;
+}
+
+function addSubscription() {
+  const name = document.getElementById('addName').value.trim();
+  const amount = parseFloat(document.getElementById('addAmount').value);
+  const cycle = document.getElementById('addCycle').value;
+  const category = document.getElementById('addCategory').value;
+  const currency = document.getElementById('addCurrency').value;
+  const day = parseInt(document.getElementById('addDay').value) || 1;
+
+  if (!name || !amount) { alert('請輸入名稱和金額'); return; }
+
+  subs.push({ id: Date.now(), name, amount, cycle, category, currency, day, active: true });
+  save();
+
+  document.getElementById('addName').value = '';
+  document.getElementById('addAmount').value = '';
+  document.getElementById('addDay').value = '';
+  render();
+}
+
+function removeSub(id) {
+  if (!confirm('確定刪除？')) return;
+  subs = subs.filter(s => s.id !== id);
+  save();
+  render();
+}
+
+function toggleSub(id) {
+  const s = subs.find(x => x.id === id);
+  if (s) s.active = !s.active;
+  save();
+  render();
+}
+
+function editSub(id) {
+  const s = subs.find(x => x.id === id);
+  if (!s) return;
+  const name = prompt('名稱：', s.name);
+  if (name === null) return;
+  const amount = prompt('金額：', s.amount);
+  if (amount === null) return;
+  s.name = name.trim() || s.name;
+  s.amount = parseFloat(amount) || s.amount;
+  save();
+  render();
+}
+
+function render() {
+  const activeSubs = subs.filter(s => s.active);
+  const totalMonthly = activeSubs.reduce((sum, s) => sum + toMonthly(s.amount, s.cycle, s.currency), 0);
+
+  document.getElementById('totalMonthly').textContent = fmtMoney(totalMonthly) + '/月';
+  document.getElementById('totalSub').textContent = `${activeSubs.length} 項訂閱（年費約 ${fmtMoney(totalMonthly * 12)}）`;
+
+  // Summary cards
+  const yearly = totalMonthly * 12;
+  const daily = totalMonthly / 30;
+  document.getElementById('summaryCards').innerHTML = `
+    <div class="card"><div class="label">每月</div><div class="value" style="color:#fbbf24">${fmtMoney(totalMonthly)}</div></div>
+    <div class="card"><div class="label">每年</div><div class="value" style="color:#f59e0b">${fmtMoney(yearly)}</div></div>
+    <div class="card"><div class="label">每日</div><div class="value" style="color:#fb923c">${fmtMoney(daily)}</div></div>
+    <div class="card"><div class="label">訂閱數</div><div class="value">${subs.length}</div><div class="label">(啟用 ${activeSubs.length})</div></div>
+  `;
+
+  // Filter bar
+  const cats = [...new Set(subs.map(s => s.category))];
+  document.getElementById('filterBar').innerHTML =
+    `<button class="filter-btn ${!filterCat ? 'active' : ''}" onclick="filterCat='';render()">全部</button>` +
+    cats.map(c => `<button class="filter-btn ${filterCat===c?'active':''}" onclick="filterCat='${c}';render()">${CATEGORIES[c]?.icon||''} ${CATEGORIES[c]?.label||c}</button>`).join('');
+
+  // Subscription list
+  const filtered = filterCat ? subs.filter(s => s.category === filterCat) : subs;
+  const sorted = [...filtered].sort((a, b) => toMonthly(b.amount, b.cycle, b.currency) - toMonthly(a.amount, a.cycle, a.currency));
+
+  if (sorted.length === 0) {
+    document.getElementById('subList').innerHTML = '<div class="empty">尚無訂閱，點上方「＋ 新增」開始追蹤</div>';
+  } else {
+    document.getElementById('subList').innerHTML = sorted.map(s => {
+      const cat = CATEGORIES[s.category] || CATEGORIES.other;
+      const monthly = toMonthly(s.amount, s.cycle, s.currency);
+      const opacity = s.active ? '1' : '0.4';
+      return `<div class="sub-item" style="opacity:${opacity};border-left:3px solid ${cat.color}">
+        <div class="sub-icon">${cat.icon}</div>
+        <div class="sub-info">
+          <div class="sub-name">${s.name} <span class="cat-tag" style="background:${cat.color}20;color:${cat.color}">${cat.label}</span></div>
+          <div class="sub-detail">${s.currency} ${s.amount.toLocaleString()} ${cycleLabel(s.cycle)} | 扣款日：${s.day}日 ${!s.active ? '⏸ 已暫停' : ''}</div>
+        </div>
+        <div class="sub-price">
+          <div class="sub-amount">${fmtMoney(monthly)}</div>
+          <div class="sub-monthly">/月</div>
+        </div>
+        <div class="sub-actions">
+          <button class="btn-edit" onclick="editSub(${s.id})">✏️</button>
+          <button class="btn-danger" onclick="toggleSub(${s.id})">${s.active ? '⏸' : '▶'}</button>
+          <button class="btn-danger" onclick="removeSub(${s.id})">✕</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // Pie chart
+  renderPieChart(activeSubs);
+
+  // Calendar
+  renderCalendar(activeSubs);
+}
+
+function renderPieChart(activeSubs) {
+  const catTotals = {};
+  activeSubs.forEach(s => {
+    const cat = s.category || 'other';
+    catTotals[cat] = (catTotals[cat] || 0) + toMonthly(s.amount, s.cycle, s.currency);
+  });
+
+  const entries = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
+  if (chartInstance) chartInstance.destroy();
+  if (entries.length === 0) return;
+
+  const total = entries.reduce((s, e) => s + e[1], 0);
+  chartInstance = new Chart(document.getElementById('pieChart'), {
+    type: 'doughnut',
+    data: {
+      labels: entries.map(e => CATEGORIES[e[0]]?.label || e[0]),
+      datasets: [{ data: entries.map(e => e[1]), backgroundColor: entries.map(e => CATEGORIES[e[0]]?.color || '#888'), borderWidth: 0 }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#aaa', font: { size: 11 }, padding: 8 } },
+        tooltip: {
+          callbacks: {
+            label: c => `${c.label}: ${fmtMoney(c.raw)} (${(c.raw/total*100).toFixed(1)}%)`
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderCalendar(activeSubs) {
+  const el = document.getElementById('calendarArea');
+  const days = {};
+  activeSubs.forEach(s => {
+    const d = s.day || 1;
+    if (!days[d]) days[d] = [];
+    days[d].push(s);
+  });
+
+  if (Object.keys(days).length === 0) {
+    el.innerHTML = '<div class="empty">無扣款日資料</div>';
+    return;
+  }
+
+  const today = new Date().getDate();
+  let html = '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:16px">';
+  for (let d = 1; d <= 31; d++) {
+    const hasSubs = days[d];
+    const isToday = d === today;
+    const bg = hasSubs ? 'rgba(251,191,36,0.15)' : 'rgba(255,255,255,0.03)';
+    const border = isToday ? '2px solid #fbbf24' : '1px solid rgba(255,255,255,0.06)';
+    html += `<div style="background:${bg};border:${border};border-radius:6px;padding:6px;text-align:center;font-size:.78em;min-height:50px">
+      <div style="font-weight:600;margin-bottom:2px;color:${isToday?'#fbbf24':'#888'}">${d}</div>
+      ${hasSubs ? hasSubs.map(s => `<div style="font-size:.65em;color:${CATEGORIES[s.category]?.color||'#aaa'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${s.name}: ${s.currency}${s.amount}">${s.name}</div>`).join('') : ''}
+    </div>`;
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function applyPreset() {
+  const sel = document.getElementById('presetSelect');
+  const val = sel.value;
+  if (!val) return;
+  const [name, amount, cycle, category, currency] = val.split('|');
+  document.getElementById('addName').value = name;
+  document.getElementById('addAmount').value = amount;
+  document.getElementById('addCycle').value = cycle;
+  document.getElementById('addCategory').value = category;
+  document.getElementById('addCurrency').value = currency;
+  sel.value = '';
+}
+
+// Init
+load();
+render();
+</script>
+</body>
+</html>
