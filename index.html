@@ -339,9 +339,9 @@ async function doEmailLogin() {
 }
 
 async function doLogout() {
-  await sb.auth.signOut();
   currentUser = null;
   showLogin();
+  try { await sb.auth.signOut(); } catch(e) {}
 }
 
 function renderUserBar() {
