@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>月費統計器</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a1a;color:#e0e0e0;min-height:100vh}
@@ -70,6 +71,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .member-card .cost{font-size:1em;font-weight:700;color:#fbbf24}
 .member-card .count{font-size:.7em;color:#888;margin-top:2px}
 
+.login-page{display:flex;align-items:center;justify-content:center;min-height:100vh;width:100%;position:fixed;top:0;left:0;right:0;bottom:0;background:linear-gradient(135deg,#0f0c29,#302b63);z-index:999}
+.login-card{background:rgba(30,27,60,.85);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:48px 40px;text-align:center;box-shadow:0 25px 60px rgba(0,0,0,.5);max-width:420px;width:90%;color:#e2e8f0}
+.login-card h1{font-size:1.8rem;background:linear-gradient(90deg,#f59e0b,#fbbf24);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px;font-weight:800}
+.login-card p{color:#888;margin-bottom:24px;font-size:.9rem}
+.btn-line{display:inline-flex;align-items:center;gap:10px;background:#06C755;color:#fff;border:none;border-radius:12px;padding:14px 32px;font-size:1rem;font-weight:700;cursor:pointer;width:100%;justify-content:center;transition:all .2s}
+.btn-line:hover{background:#05b04c}
+.login-loading{display:none;text-align:center;padding:20px;color:#aaa}
+.app-page{display:none}
+.user-bar{display:flex;align-items:center;gap:10px;justify-content:flex-end;padding:4px 0;margin-bottom:8px}
+.user-bar .user-name{font-size:.82em;color:#a78bfa}
+.btn-logout{padding:4px 12px;border:1px solid rgba(255,255,255,0.2);border-radius:6px;background:transparent;color:#888;cursor:pointer;font-size:.75em}
+.btn-logout:hover{background:rgba(255,255,255,0.1);color:#fff}
+
 @media(max-width:600px){
   .add-bar{flex-direction:column}
   .add-bar input,.add-bar select{width:100%}
@@ -78,6 +92,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </head>
 <body>
 
+<div id="loginPage" class="login-page">
+  <div class="login-card">
+    <div style="font-size:3rem;margin-bottom:12px">💳</div>
+    <h1>月費統計器</h1>
+    <p>追蹤你的每月訂閱花費</p>
+    <button class="btn-line" onclick="doLogin()">🟢 LINE 登入</button>
+    <div class="login-loading" id="loginLoading">登入中...</div>
+  </div>
+</div>
+
+<div id="appPage" class="app-page">
 <div class="header">
   <h1>💳 月費統計器</h1>
   <div class="total" id="totalMonthly">$0</div>
@@ -85,6 +110,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 
 <div class="content">
+  <div class="user-bar" id="userBar"></div>
   <div class="section-title">👥 家庭成員</div>
   <div class="member-bar" id="memberBar"></div>
 
@@ -213,8 +239,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div class="section-title">📅 月曆（扣款日）</div>
   <div id="calendarArea"></div>
 </div>
+</div><!-- end appPage -->
 
 <script>
+const SUPABASE_URL = 'https://kvnwfesbnxzoqpdgauov.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt2bndmZXNibnh6b3FwZGdhdW92Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwNTAwMjIsImV4cCI6MjA5MDYyNjAyMn0.wpf9rUcPiaTUkDVhVgUaxBJ2rA4WaAMHG7tgSv9BOOQ';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let currentUser = null;
+
 const CATEGORIES = {
   entertainment: { label: '娛樂', color: '#f59e0b', icon: '🎮' },
   tools: { label: '工具', color: '#3b82f6', icon: '🔧' },
@@ -235,17 +268,101 @@ const RATES = { TWD: 1, USD: 32, JPY: 0.22 };
 let subs = [];
 let members = [];
 let filterCat = '';
-let filterMember = ''; // '' = all, specific name = that member
+let filterMember = '';
 let chartInstance = null;
 
-function load() {
-  try { subs = JSON.parse(localStorage.getItem('subscriptions') || '[]'); } catch(e) { subs = []; }
-  try { members = JSON.parse(localStorage.getItem('sub_members') || '[]'); } catch(e) { members = []; }
+// --- Auth ---
+function showLogin() {
+  document.getElementById('loginPage').style.display = 'flex';
+  document.getElementById('appPage').style.display = 'none';
 }
 
-function save() {
+function showApp() {
+  document.getElementById('loginPage').style.display = 'none';
+  document.getElementById('appPage').style.display = 'block';
+}
+
+async function doLogin() {
+  document.getElementById('loginLoading').style.display = 'block';
+  const { error } = await sb.auth.signInWithOAuth({
+    provider: 'custom:line',
+    options: { redirectTo: window.location.origin + window.location.pathname, queryParams: { prompt: 'consent' } }
+  });
+  if (error) { alert('登入失敗: ' + error.message); document.getElementById('loginLoading').style.display = 'none'; }
+}
+
+async function doLogout() {
+  await sb.auth.signOut();
+  currentUser = null;
+  showLogin();
+}
+
+function renderUserBar() {
+  const name = currentUser?.user_metadata?.name || currentUser?.email || '使用者';
+  const avatar = currentUser?.user_metadata?.picture || currentUser?.user_metadata?.avatar_url || '';
+  document.getElementById('userBar').innerHTML = `
+    ${avatar ? `<img src="${avatar}" style="width:28px;height:28px;border-radius:50%">` : ''}
+    <span class="user-name">${name}</span>
+    <button class="btn-logout" onclick="doLogout()">登出</button>
+  `;
+}
+
+// --- Data persistence (Supabase with localStorage fallback) ---
+async function load() {
+  // Load from localStorage first (fast)
+  try { subs = JSON.parse(localStorage.getItem('subscriptions') || '[]'); } catch(e) { subs = []; }
+  try { members = JSON.parse(localStorage.getItem('sub_members') || '[]'); } catch(e) { members = []; }
+
+  if (!currentUser) return;
+  const uid = currentUser.id;
+
+  // Load from Supabase
+  try {
+    const { data: subData } = await sb.from('sub_subscriptions').select('*').eq('user_id', uid);
+    if (subData && subData.length > 0) {
+      subs = subData.map(r => ({
+        id: r.id, name: r.name, amount: r.amount, cycle: r.cycle,
+        category: r.category, currency: r.currency, member: r.member || '',
+        day: r.billing_day, active: r.is_active
+      }));
+    }
+    const { data: memData } = await sb.from('sub_members').select('name').eq('user_id', uid);
+    if (memData) members = memData.map(m => m.name);
+
+    // Sync to localStorage
+    localStorage.setItem('subscriptions', JSON.stringify(subs));
+    localStorage.setItem('sub_members', JSON.stringify(members));
+  } catch(e) {
+    console.warn('Supabase load failed, using localStorage', e);
+  }
+}
+
+async function save() {
   localStorage.setItem('subscriptions', JSON.stringify(subs));
   localStorage.setItem('sub_members', JSON.stringify(members));
+
+  if (!currentUser) return;
+  const uid = currentUser.id;
+
+  try {
+    // Sync subscriptions: delete all then insert
+    await sb.from('sub_subscriptions').delete().eq('user_id', uid);
+    if (subs.length > 0) {
+      await sb.from('sub_subscriptions').insert(subs.map(s => ({
+        id: s.id, user_id: uid, name: s.name, amount: s.amount, cycle: s.cycle,
+        category: s.category, currency: s.currency, member: s.member || null,
+        billing_day: s.day, is_active: s.active
+      })));
+    }
+
+    // Sync members
+    await sb.from('sub_members').delete().eq('user_id', uid);
+    if (members.length > 0) {
+      await sb.from('sub_members').insert(members.map(m => ({ user_id: uid, name: m })));
+    }
+  } catch(e) {
+    console.warn('Supabase save failed', e);
+  }
 }
 
 function toMonthly(amount, cycle, currency) {
@@ -546,8 +663,33 @@ function renderCalendar(activeSubs) {
 }
 
 // Init
-load();
-render();
+async function init() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session?.user) {
+    currentUser = session.user;
+    showApp();
+    renderUserBar();
+    await load();
+    render();
+  } else {
+    showLogin();
+  }
+}
+
+sb.auth.onAuthStateChange(async (event, session) => {
+  if (event === 'SIGNED_IN' && session?.user) {
+    currentUser = session.user;
+    showApp();
+    renderUserBar();
+    await load();
+    render();
+  } else if (event === 'SIGNED_OUT') {
+    currentUser = null;
+    showLogin();
+  }
+});
+
+init();
 </script>
 </body>
 </html>
