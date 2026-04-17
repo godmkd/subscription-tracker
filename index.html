@@ -20,6 +20,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .card .label{font-size:.72em;color:#888;margin-bottom:4px}
 .card .value{font-size:1.1em;font-weight:700}
 
+.member-bar{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+.member-chip{padding:5px 14px;border-radius:20px;font-size:.82em;cursor:pointer;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:#aaa;transition:all .15s;position:relative}
+.member-chip.active{background:rgba(167,139,250,0.2);color:#a78bfa;border-color:#a78bfa}
+.member-chip .remove{display:none;position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:50%;background:#f87171;color:#fff;font-size:10px;line-height:16px;text-align:center;cursor:pointer}
+.member-chip:hover .remove{display:block}
+.member-add{padding:5px 12px;border-radius:20px;font-size:.82em;cursor:pointer;border:1px dashed rgba(255,255,255,0.3);background:transparent;color:#888;transition:all .15s}
+.member-add:hover{border-color:#a78bfa;color:#a78bfa}
+
 .add-bar{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;align-items:center}
 .add-bar input,.add-bar select{padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.08);color:#fff;font-size:.88em}
 .add-bar input::placeholder{color:#666}
@@ -43,6 +51,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .sub-amount{font-size:1.1em;font-weight:700;color:#fbbf24}
 .sub-monthly{font-size:.72em;color:#888;margin-top:2px}
 .sub-actions{display:flex;gap:4px}
+.member-tag{display:inline-block;padding:1px 6px;border-radius:8px;font-size:.65em;background:rgba(167,139,250,0.2);color:#a78bfa;margin-left:4px}
 
 .chart-area{max-width:350px;margin:0 auto 20px}
 .section-title{font-size:.95em;color:#888;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.08)}
@@ -54,6 +63,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .filter-btn.active{background:rgba(251,191,36,0.2);color:#fbbf24;border-color:#fbbf24}
 
 .empty{text-align:center;color:#666;padding:40px;font-size:.9em}
+
+.member-summary{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-bottom:16px}
+.member-card{background:rgba(167,139,250,0.06);border:1px solid rgba(167,139,250,0.15);border-radius:10px;padding:10px;text-align:center}
+.member-card .name{font-size:.85em;color:#a78bfa;margin-bottom:4px}
+.member-card .cost{font-size:1em;font-weight:700;color:#fbbf24}
+.member-card .count{font-size:.7em;color:#888;margin-top:2px}
 
 @media(max-width:600px){
   .add-bar{flex-direction:column}
@@ -70,7 +85,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 
 <div class="content">
+  <div class="section-title">👥 家庭成員</div>
+  <div class="member-bar" id="memberBar"></div>
+
   <div class="summary" id="summaryCards"></div>
+
+  <div class="member-summary" id="memberSummary" style="display:none"></div>
 
   <div class="add-bar">
     <select id="presetSelect" onchange="applyPreset()" style="flex:1;min-width:140px;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.08);color:#fff;font-size:.88em">
@@ -131,6 +151,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <option value="中華電信 999|999|monthly|life|TWD">中華電信 999 (NT$999/月)</option>
         <option value="台灣大哥大 599|599|monthly|life|TWD">台灣大哥大 599 (NT$599/月)</option>
         <option value="遠傳 499|499|monthly|life|TWD">遠傳 499 (NT$499/月)</option>
+        <option value="管理費|0|monthly|life|TWD">管理費 (自訂金額)</option>
+        <option value="停車費|0|monthly|life|TWD">停車費 (自訂金額)</option>
+      </optgroup>
+      <optgroup label="🛡️ 保險">
+        <option value="壽險|0|monthly|insurance|TWD">壽險 (自訂金額)</option>
+        <option value="醫療險|0|monthly|insurance|TWD">醫療險 (自訂金額)</option>
+        <option value="意外險|0|monthly|insurance|TWD">意外險 (自訂金額)</option>
+        <option value="儲蓄險|0|monthly|insurance|TWD">儲蓄險 (自訂金額)</option>
+        <option value="車險|0|yearly|insurance|TWD">車險 (自訂金額/年)</option>
+        <option value="旅平險|0|yearly|insurance|TWD">旅平險 (自訂金額/年)</option>
+      </optgroup>
+      <optgroup label="🏛️ 規費/稅費">
+        <option value="健保費|0|monthly|government|TWD">健保費 (自訂金額)</option>
+        <option value="勞保費|0|monthly|government|TWD">勞保費 (自訂金額)</option>
+        <option value="學會年費|0|yearly|government|TWD">學會年費 (自訂金額/年)</option>
       </optgroup>
     </select>
     <input type="text" id="addName" placeholder="或自訂名稱" style="flex:1;min-width:100px">
@@ -149,6 +184,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <option value="video">影音</option>
       <option value="news">新聞</option>
       <option value="health">健康</option>
+      <option value="insurance">保險</option>
+      <option value="government">規費</option>
       <option value="work">工作</option>
       <option value="life">生活</option>
       <option value="other">其他</option>
@@ -157,6 +194,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <option value="TWD">TWD</option>
       <option value="USD">USD</option>
       <option value="JPY">JPY</option>
+    </select>
+    <select id="addMember" style="min-width:80px">
+      <option value="">不指定</option>
     </select>
     <input type="number" id="addDay" placeholder="扣款日" min="1" max="31" style="width:70px">
     <button class="btn btn-add" onclick="addSubscription()">＋ 新增</button>
@@ -183,23 +223,29 @@ const CATEGORIES = {
   video: { label: '影音', color: '#f87171', icon: '🎬' },
   news: { label: '新聞', color: '#34d399', icon: '📰' },
   health: { label: '健康', color: '#fb923c', icon: '💪' },
+  insurance: { label: '保險', color: '#e879f9', icon: '🛡️' },
+  government: { label: '規費', color: '#94a3b8', icon: '🏛️' },
   work: { label: '工作', color: '#60a5fa', icon: '💼' },
   life: { label: '生活', color: '#fbbf24', icon: '🏠' },
   other: { label: '其他', color: '#9ca3af', icon: '📦' }
 };
 
-const RATES = { TWD: 1, USD: 32, JPY: 0.22 }; // rough rates to TWD
+const RATES = { TWD: 1, USD: 32, JPY: 0.22 };
 
 let subs = [];
+let members = [];
 let filterCat = '';
+let filterMember = ''; // '' = all, specific name = that member
 let chartInstance = null;
 
 function load() {
   try { subs = JSON.parse(localStorage.getItem('subscriptions') || '[]'); } catch(e) { subs = []; }
+  try { members = JSON.parse(localStorage.getItem('sub_members') || '[]'); } catch(e) { members = []; }
 }
 
 function save() {
   localStorage.setItem('subscriptions', JSON.stringify(subs));
+  localStorage.setItem('sub_members', JSON.stringify(members));
 }
 
 function toMonthly(amount, cycle, currency) {
@@ -216,22 +262,97 @@ function cycleLabel(c) {
   return { monthly: '每月', quarterly: '每季', yearly: '每年', weekly: '每週' }[c] || c;
 }
 
+// --- Member management ---
+function addMember() {
+  const name = prompt('輸入成員名稱：');
+  if (!name || !name.trim()) return;
+  const trimmed = name.trim();
+  if (members.includes(trimmed)) { alert('成員已存在'); return; }
+  members.push(trimmed);
+  save();
+  render();
+}
+
+function removeMember(name) {
+  if (!confirm(`確定移除「${name}」？該成員的訂閱會變成不指定`)) return;
+  members = members.filter(m => m !== name);
+  subs.forEach(s => { if (s.member === name) s.member = ''; });
+  save();
+  render();
+}
+
+function renderMemberBar() {
+  const bar = document.getElementById('memberBar');
+  let html = `<span class="member-chip ${filterMember===''?'active':''}" onclick="filterMember='';render()">全部</span>`;
+  members.forEach(m => {
+    html += `<span class="member-chip ${filterMember===m?'active':''}" onclick="filterMember='${m}';render()">
+      ${m}<span class="remove" onclick="event.stopPropagation();removeMember('${m}')">✕</span>
+    </span>`;
+  });
+  html += `<button class="member-add" onclick="addMember()">＋ 新增成員</button>`;
+  bar.innerHTML = html;
+
+  // Update member select in add form
+  const sel = document.getElementById('addMember');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">不指定</option>' + members.map(m => `<option value="${m}">${m}</option>`).join('');
+  sel.value = current;
+}
+
+function renderMemberSummary(activeSubs) {
+  const el = document.getElementById('memberSummary');
+  if (members.length === 0) { el.style.display = 'none'; return; }
+  el.style.display = 'grid';
+
+  const memberCosts = {};
+  const memberCounts = {};
+  members.forEach(m => { memberCosts[m] = 0; memberCounts[m] = 0; });
+  memberCosts['未指定'] = 0;
+  memberCounts['未指定'] = 0;
+
+  activeSubs.forEach(s => {
+    const m = s.member || '未指定';
+    const monthly = toMonthly(s.amount, s.cycle, s.currency);
+    if (memberCosts[m] !== undefined) {
+      memberCosts[m] += monthly;
+      memberCounts[m]++;
+    } else {
+      memberCosts['未指定'] += monthly;
+      memberCounts['未指定']++;
+    }
+  });
+
+  const keys = [...members];
+  if (memberCounts['未指定'] > 0) keys.push('未指定');
+
+  el.innerHTML = keys.map(m => `
+    <div class="member-card">
+      <div class="name">👤 ${m}</div>
+      <div class="cost">${fmtMoney(memberCosts[m])}/月</div>
+      <div class="count">${memberCounts[m]} 項</div>
+    </div>
+  `).join('');
+}
+
+// --- Subscriptions ---
 function addSubscription() {
   const name = document.getElementById('addName').value.trim();
   const amount = parseFloat(document.getElementById('addAmount').value);
   const cycle = document.getElementById('addCycle').value;
   const category = document.getElementById('addCategory').value;
   const currency = document.getElementById('addCurrency').value;
+  const member = document.getElementById('addMember').value;
   const day = parseInt(document.getElementById('addDay').value) || 1;
 
-  if (!name || !amount) { alert('請輸入名稱和金額'); return; }
+  if (!name || isNaN(amount)) { alert('請輸入名稱和金額'); return; }
 
-  subs.push({ id: Date.now(), name, amount, cycle, category, currency, day, active: true });
+  subs.push({ id: Date.now(), name, amount, cycle, category, currency, member, day, active: true });
   save();
 
   document.getElementById('addName').value = '';
   document.getElementById('addAmount').value = '';
   document.getElementById('addDay').value = '';
+  document.getElementById('presetSelect').value = '';
   render();
 }
 
@@ -256,37 +377,76 @@ function editSub(id) {
   if (name === null) return;
   const amount = prompt('金額：', s.amount);
   if (amount === null) return;
+  const memberOptions = ['（不指定）', ...members];
+  const currentIdx = s.member ? memberOptions.indexOf(s.member) : 0;
+  const memberInput = prompt(`成員（${memberOptions.join('/')}）：`, memberOptions[currentIdx] || '（不指定）');
+  if (memberInput === null) return;
   s.name = name.trim() || s.name;
   s.amount = parseFloat(amount) || s.amount;
+  s.member = (memberInput === '（不指定）' || !memberInput.trim()) ? '' : memberInput.trim();
   save();
   render();
 }
 
+function applyPreset() {
+  const sel = document.getElementById('presetSelect');
+  const val = sel.value;
+  if (!val) return;
+  const [name, amount, cycle, category, currency] = val.split('|');
+  document.getElementById('addName').value = name;
+  document.getElementById('addAmount').value = amount;
+  document.getElementById('addCycle').value = cycle;
+  document.getElementById('addCategory').value = category;
+  document.getElementById('addCurrency').value = currency;
+  // Focus amount if 0 (custom amount presets)
+  if (amount === '0') {
+    document.getElementById('addAmount').value = '';
+    document.getElementById('addAmount').focus();
+  }
+  sel.value = '';
+}
+
 function render() {
-  const activeSubs = subs.filter(s => s.active);
+  renderMemberBar();
+
+  let activeSubs = subs.filter(s => s.active);
+  const allActiveSubs = activeSubs;
+
+  // Filter by member
+  let displaySubs = subs;
+  if (filterMember) {
+    activeSubs = activeSubs.filter(s => s.member === filterMember);
+    displaySubs = subs.filter(s => s.member === filterMember);
+  }
+
   const totalMonthly = activeSubs.reduce((sum, s) => sum + toMonthly(s.amount, s.cycle, s.currency), 0);
 
+  const memberLabel = filterMember ? ` (${filterMember})` : '';
   document.getElementById('totalMonthly').textContent = fmtMoney(totalMonthly) + '/月';
-  document.getElementById('totalSub').textContent = `${activeSubs.length} 項訂閱（年費約 ${fmtMoney(totalMonthly * 12)}）`;
+  document.getElementById('totalSub').textContent = `${activeSubs.length} 項訂閱${memberLabel}（年費約 ${fmtMoney(totalMonthly * 12)}）`;
 
   // Summary cards
   const yearly = totalMonthly * 12;
   const daily = totalMonthly / 30;
   document.getElementById('summaryCards').innerHTML = `
-    <div class="card"><div class="label">每月</div><div class="value" style="color:#fbbf24">${fmtMoney(totalMonthly)}</div></div>
-    <div class="card"><div class="label">每年</div><div class="value" style="color:#f59e0b">${fmtMoney(yearly)}</div></div>
-    <div class="card"><div class="label">每日</div><div class="value" style="color:#fb923c">${fmtMoney(daily)}</div></div>
-    <div class="card"><div class="label">訂閱數</div><div class="value">${subs.length}</div><div class="label">(啟用 ${activeSubs.length})</div></div>
+    <div class="card"><div class="label">每月${memberLabel}</div><div class="value" style="color:#fbbf24">${fmtMoney(totalMonthly)}</div></div>
+    <div class="card"><div class="label">每年${memberLabel}</div><div class="value" style="color:#f59e0b">${fmtMoney(yearly)}</div></div>
+    <div class="card"><div class="label">每日${memberLabel}</div><div class="value" style="color:#fb923c">${fmtMoney(daily)}</div></div>
+    <div class="card"><div class="label">訂閱數</div><div class="value">${displaySubs.length}</div><div class="label">(啟用 ${activeSubs.length})</div></div>
   `;
 
-  // Filter bar
-  const cats = [...new Set(subs.map(s => s.category))];
+  // Member summary (only when viewing all)
+  if (!filterMember) renderMemberSummary(allActiveSubs);
+  else document.getElementById('memberSummary').style.display = 'none';
+
+  // Filter bar (category)
+  const cats = [...new Set(displaySubs.map(s => s.category))];
   document.getElementById('filterBar').innerHTML =
     `<button class="filter-btn ${!filterCat ? 'active' : ''}" onclick="filterCat='';render()">全部</button>` +
     cats.map(c => `<button class="filter-btn ${filterCat===c?'active':''}" onclick="filterCat='${c}';render()">${CATEGORIES[c]?.icon||''} ${CATEGORIES[c]?.label||c}</button>`).join('');
 
   // Subscription list
-  const filtered = filterCat ? subs.filter(s => s.category === filterCat) : subs;
+  let filtered = filterCat ? displaySubs.filter(s => s.category === filterCat) : displaySubs;
   const sorted = [...filtered].sort((a, b) => toMonthly(b.amount, b.cycle, b.currency) - toMonthly(a.amount, a.cycle, a.currency));
 
   if (sorted.length === 0) {
@@ -296,10 +456,11 @@ function render() {
       const cat = CATEGORIES[s.category] || CATEGORIES.other;
       const monthly = toMonthly(s.amount, s.cycle, s.currency);
       const opacity = s.active ? '1' : '0.4';
+      const memberHtml = s.member ? `<span class="member-tag">👤 ${s.member}</span>` : '';
       return `<div class="sub-item" style="opacity:${opacity};border-left:3px solid ${cat.color}">
         <div class="sub-icon">${cat.icon}</div>
         <div class="sub-info">
-          <div class="sub-name">${s.name} <span class="cat-tag" style="background:${cat.color}20;color:${cat.color}">${cat.label}</span></div>
+          <div class="sub-name">${s.name} <span class="cat-tag" style="background:${cat.color}20;color:${cat.color}">${cat.label}</span>${memberHtml}</div>
           <div class="sub-detail">${s.currency} ${s.amount.toLocaleString()} ${cycleLabel(s.cycle)} | 扣款日：${s.day}日 ${!s.active ? '⏸ 已暫停' : ''}</div>
         </div>
         <div class="sub-price">
@@ -382,19 +543,6 @@ function renderCalendar(activeSubs) {
   }
   html += '</div>';
   el.innerHTML = html;
-}
-
-function applyPreset() {
-  const sel = document.getElementById('presetSelect');
-  const val = sel.value;
-  if (!val) return;
-  const [name, amount, cycle, category, currency] = val.split('|');
-  document.getElementById('addName').value = name;
-  document.getElementById('addAmount').value = amount;
-  document.getElementById('addCycle').value = cycle;
-  document.getElementById('addCategory').value = category;
-  document.getElementById('addCurrency').value = currency;
-  sel.value = '';
 }
 
 // Init
