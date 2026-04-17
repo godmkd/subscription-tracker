@@ -77,6 +77,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .login-card p{color:#888;margin-bottom:24px;font-size:.9rem}
 .btn-line{display:inline-flex;align-items:center;gap:10px;background:#06C755;color:#fff;border:none;border-radius:12px;padding:14px 32px;font-size:1rem;font-weight:700;cursor:pointer;width:100%;justify-content:center;transition:all .2s}
 .btn-line:hover{background:#05b04c}
+.login-divider{margin:20px 0 16px;position:relative;border-top:1px solid rgba(255,255,255,.15)}
+.login-divider span{position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:rgba(30,27,60,.85);padding:0 14px;font-size:.82rem;color:#888;white-space:nowrap}
+.login-input{width:100%;padding:12px 14px;border:1px solid rgba(255,255,255,.15);border-radius:10px;margin-bottom:10px;font-size:.95rem;box-sizing:border-box;outline:none;background:rgba(255,255,255,.08);color:#fff;transition:border-color .2s}
+.login-input:focus{border-color:#fbbf24}
+.login-input::placeholder{color:#666}
+.btn-email{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.1);color:#e0e0e0;border:1px solid rgba(255,255,255,.2);border-radius:12px;padding:12px 32px;font-size:.95rem;font-weight:600;cursor:pointer;width:100%;justify-content:center;transition:all .2s}
+.btn-email:hover{background:rgba(255,255,255,.18)}
+.login-msg{font-size:.82em;color:#34d399;margin-top:10px;display:none}
 .login-loading{display:none;text-align:center;padding:20px;color:#aaa}
 .app-page{display:none}
 .user-bar{display:flex;align-items:center;gap:10px;justify-content:flex-end;padding:4px 0;margin-bottom:8px}
@@ -98,6 +106,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <h1>月費統計器</h1>
     <p>追蹤你的每月訂閱花費</p>
     <button class="btn-line" onclick="doLogin()">🟢 LINE 登入</button>
+    <div class="login-divider"><span>或使用信箱</span></div>
+    <input class="login-input" id="loginEmail" type="email" placeholder="信箱" onkeydown="if(event.key==='Enter')doEmailLogin()">
+    <input class="login-input" id="loginPassword" type="password" placeholder="密碼" onkeydown="if(event.key==='Enter')doEmailLogin()">
+    <button class="btn-email" onclick="doEmailLogin()">📧 信箱登入 / 註冊</button>
+    <div class="login-msg" id="loginMsg"></div>
     <div class="login-loading" id="loginLoading">登入中...</div>
   </div>
 </div>
@@ -289,6 +302,40 @@ async function doLogin() {
     options: { redirectTo: window.location.origin + window.location.pathname, queryParams: { prompt: 'consent' } }
   });
   if (error) { alert('登入失敗: ' + error.message); document.getElementById('loginLoading').style.display = 'none'; }
+}
+
+async function doEmailLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const msg = document.getElementById('loginMsg');
+  if (!email || !password) { msg.style.display = 'block'; msg.style.color = '#f87171'; msg.textContent = '請輸入信箱和密碼'; return; }
+  if (password.length < 6) { msg.style.display = 'block'; msg.style.color = '#f87171'; msg.textContent = '密碼至少 6 碼'; return; }
+
+  document.getElementById('loginLoading').style.display = 'block';
+  msg.style.display = 'none';
+
+  // Try sign in first
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if (!error && data.user) return; // onAuthStateChange handles the rest
+
+  // If invalid credentials, try sign up
+  if (error && (error.message.includes('Invalid') || error.message.includes('credentials'))) {
+    const { data: signUpData, error: signUpErr } = await sb.auth.signUp({ email, password });
+    if (signUpErr) {
+      msg.style.display = 'block'; msg.style.color = '#f87171'; msg.textContent = '註冊失敗: ' + signUpErr.message;
+      document.getElementById('loginLoading').style.display = 'none';
+      return;
+    }
+    if (signUpData.user && !signUpData.session) {
+      msg.style.display = 'block'; msg.style.color = '#34d399'; msg.textContent = '已寄出驗證信，請查收後重新登入';
+      document.getElementById('loginLoading').style.display = 'none';
+      return;
+    }
+    return; // onAuthStateChange handles
+  }
+
+  msg.style.display = 'block'; msg.style.color = '#f87171'; msg.textContent = '登入失敗: ' + (error?.message || '未知錯誤');
+  document.getElementById('loginLoading').style.display = 'none';
 }
 
 async function doLogout() {
