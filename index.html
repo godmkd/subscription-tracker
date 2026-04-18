@@ -359,48 +359,64 @@ function renderUserBar() {
 // This avoids delete+insert race conditions and works with existing Supabase project
 
 async function loadFromCloud() {
-  if (!currentUser) return;
+  if (!currentUser) { showSyncStatus('⚠️ 未登入'); return; }
   const uid = currentUser.id;
   const localSubs = [...subs];
+  const localMembers = [...members];
 
   try {
     const settingsKey = 'sub_' + uid;
+    showSyncStatus('☁️ 同步中...');
     const { data, error } = await sb.from('app_settings').select('value').eq('key', settingsKey).maybeSingle();
-    if (error) { console.warn('app_settings query error:', error.message); return; }
+
+    if (error) {
+      showSyncStatus('❌ 讀取失敗: ' + error.message);
+      return;
+    }
 
     if (data?.value) {
       const cloud = data.value;
-      if (cloud.subs && cloud.subs.length > 0) subs = cloud.subs;
+      if (cloud.subs) subs = cloud.subs;
       if (cloud.members) members = cloud.members;
       localStorage.setItem('subscriptions', JSON.stringify(subs));
       localStorage.setItem('sub_members', JSON.stringify(members));
-    } else if (localSubs.length > 0) {
-      // Cloud empty, localStorage has data — push up
-      await saveToCloud();
+      showSyncStatus('☁️ 已從雲端載入');
+    } else {
+      // Cloud empty — push localStorage data up
+      if (localSubs.length > 0 || localMembers.length > 0) {
+        subs = localSubs;
+        members = localMembers;
+        await saveToCloud();
+      } else {
+        showSyncStatus('☁️ 雲端無資料');
+      }
     }
   } catch(e) {
-    console.warn('Cloud load failed, using localStorage', e);
+    console.error('Cloud load failed:', e);
+    showSyncStatus('❌ 雲端連線失敗');
   }
 }
 
 async function saveToCloud() {
-  if (!currentUser) return;
+  if (!currentUser) { showSyncStatus('⚠️ 未登入，無法同步'); return; }
   try {
     const settingsKey = 'sub_' + currentUser.id;
-    const { error } = await sb.from('app_settings').upsert({
+    const payload = {
       key: settingsKey,
       value: { subs, members, updated: Date.now() },
       updated_at: new Date().toISOString()
-    }, { onConflict: 'key' });
+    };
+    console.log('saveToCloud key:', settingsKey, 'subs:', subs.length, 'members:', members.length);
+    const { error } = await sb.from('app_settings').upsert(payload, { onConflict: 'key' });
     if (error) {
-      console.error('Cloud save error:', error.message, error);
-      showSyncStatus('❌ 同步失敗');
+      console.error('Cloud save error:', error);
+      showSyncStatus('❌ 儲存失敗: ' + error.message);
     } else {
-      showSyncStatus('☁️ 已同步');
+      showSyncStatus('☁️ 已同步 (' + subs.length + '筆)');
     }
   } catch(e) {
-    console.error('Cloud save failed:', e);
-    showSyncStatus('❌ 同步失敗');
+    console.error('Cloud save exception:', e);
+    showSyncStatus('❌ 儲存異常: ' + e.message);
   }
 }
 
@@ -409,12 +425,14 @@ function showSyncStatus(text) {
   if (!el) {
     el = document.createElement('div');
     el.id = 'syncStatus';
-    el.style.cssText = 'position:fixed;bottom:12px;right:12px;padding:6px 14px;border-radius:8px;background:rgba(0,0,0,0.7);color:#aaa;font-size:0.75em;z-index:100;transition:opacity 0.5s';
+    el.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:10px;background:rgba(0,0,0,0.85);color:#e0e0e0;font-size:0.85em;z-index:9999;transition:opacity 0.5s;box-shadow:0 4px 12px rgba(0,0,0,0.5)';
     document.body.appendChild(el);
   }
   el.textContent = text;
   el.style.opacity = '1';
-  setTimeout(() => { el.style.opacity = '0'; }, 2000);
+  const isError = text.includes('❌') || text.includes('⚠️');
+  el.style.color = isError ? '#f87171' : '#34d399';
+  setTimeout(() => { el.style.opacity = '0'; }, isError ? 5000 : 3000);
 }
 
 async function save() {
