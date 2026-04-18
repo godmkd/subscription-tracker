@@ -389,12 +389,32 @@ async function saveToCloud() {
     const settingsKey = 'sub_' + currentUser.id;
     const { error } = await sb.from('app_settings').upsert({
       key: settingsKey,
-      value: { subs, members, updated: Date.now() }
+      value: { subs, members, updated: Date.now() },
+      updated_at: new Date().toISOString()
     }, { onConflict: 'key' });
-    if (error) console.warn('Cloud save error:', error.message);
+    if (error) {
+      console.error('Cloud save error:', error.message, error);
+      showSyncStatus('❌ 同步失敗');
+    } else {
+      showSyncStatus('☁️ 已同步');
+    }
   } catch(e) {
-    console.warn('Cloud save failed:', e);
+    console.error('Cloud save failed:', e);
+    showSyncStatus('❌ 同步失敗');
   }
+}
+
+function showSyncStatus(text) {
+  let el = document.getElementById('syncStatus');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'syncStatus';
+    el.style.cssText = 'position:fixed;bottom:12px;right:12px;padding:6px 14px;border-radius:8px;background:rgba(0,0,0,0.7);color:#aaa;font-size:0.75em;z-index:100;transition:opacity 0.5s';
+    document.body.appendChild(el);
+  }
+  el.textContent = text;
+  el.style.opacity = '1';
+  setTimeout(() => { el.style.opacity = '0'; }, 2000);
 }
 
 async function save() {
