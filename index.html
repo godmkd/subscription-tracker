@@ -358,15 +358,10 @@ function renderUserBar() {
 // Strategy: use app_settings table (single JSON blob per user) as primary store
 // This avoids delete+insert race conditions and works with existing Supabase project
 
-async function load() {
-  // Load from localStorage first (instant)
-  try { subs = JSON.parse(localStorage.getItem('subscriptions') || '[]'); } catch(e) { subs = []; }
-  try { members = JSON.parse(localStorage.getItem('sub_members') || '[]'); } catch(e) { members = []; }
-
+async function loadFromCloud() {
   if (!currentUser) return;
   const uid = currentUser.id;
   const localSubs = [...subs];
-  const localMembers = [...members];
 
   try {
     const settingsKey = 'sub_' + uid;
@@ -380,7 +375,7 @@ async function load() {
       localStorage.setItem('subscriptions', JSON.stringify(subs));
       localStorage.setItem('sub_members', JSON.stringify(members));
     } else if (localSubs.length > 0) {
-      console.log('Migrating localStorage to cloud...');
+      // Cloud empty, localStorage has data — push up
       await saveToCloud();
     }
   } catch(e) {
@@ -712,7 +707,12 @@ async function enterApp(user) {
   currentUser = user;
   showApp();
   renderUserBar();
-  await load();
+  // Render immediately from localStorage
+  try { subs = JSON.parse(localStorage.getItem('subscriptions') || '[]'); } catch(e) { subs = []; }
+  try { members = JSON.parse(localStorage.getItem('sub_members') || '[]'); } catch(e) { members = []; }
+  render();
+  // Then sync with cloud in background
+  await loadFromCloud();
   render();
 }
 
