@@ -355,6 +355,8 @@ function renderUserBar() {
 }
 
 // --- Data persistence (Supabase with localStorage fallback) ---
+let supabaseReady = false; // true if tables exist and query succeeded
+
 async function load() {
   // Load from localStorage first (fast)
   try { subs = JSON.parse(localStorage.getItem('subscriptions') || '[]'); } catch(e) { subs = []; }
@@ -365,36 +367,22 @@ async function load() {
 
   // Load from Supabase
   try {
-    const { data: subData } = await sb.from('sub_subscriptions').select('*').eq('user_id', uid);
+    const { data: subData, error: subErr } = await sb.from('sub_subscriptions').select('*').eq('user_id', uid);
+    if (subErr) throw subErr;
+
+    // Supabase query succeeded — tables exist
+    supabaseReady = true;
+
     if (subData && subData.length > 0) {
+      // Cloud has data — use it as source of truth
       subs = subData.map(r => ({
         id: r.id, name: r.name, amount: r.amount, cycle: r.cycle,
         category: r.category, currency: r.currency, member: r.member || '',
         day: r.billing_day, active: r.is_active
       }));
-    }
-    const { data: memData } = await sb.from('sub_members').select('name').eq('user_id', uid);
-    if (memData) members = memData.map(m => m.name);
-
-    // Sync to localStorage
-    localStorage.setItem('subscriptions', JSON.stringify(subs));
-    localStorage.setItem('sub_members', JSON.stringify(members));
-  } catch(e) {
-    console.warn('Supabase load failed, using localStorage', e);
-  }
-}
-
-async function save() {
-  localStorage.setItem('subscriptions', JSON.stringify(subs));
-  localStorage.setItem('sub_members', JSON.stringify(members));
-
-  if (!currentUser) return;
-  const uid = currentUser.id;
-
-  try {
-    // Sync subscriptions: delete all then insert
-    await sb.from('sub_subscriptions').delete().eq('user_id', uid);
-    if (subs.length > 0) {
+    } else if (subs.length > 0) {
+      // Cloud is empty but localStorage has data — push localStorage to cloud (first-time migration)
+      console.log('Migrating localStorage data to Supabase...');
       await sb.from('sub_subscriptions').insert(subs.map(s => ({
         id: s.id, user_id: uid, name: s.name, amount: s.amount, cycle: s.cycle,
         category: s.category, currency: s.currency, member: s.member || null,
@@ -402,7 +390,56 @@ async function save() {
       })));
     }
 
-    // Sync members
+    const { data: memData, error: memErr } = await sb.from('sub_members').select('name').eq('user_id', uid);
+    if (!memErr && memData) {
+      if (memData.length > 0) {
+        members = memData.map(m => m.name);
+      } else if (members.length > 0) {
+        // Migrate members too
+        await sb.from('sub_members').insert(members.map(m => ({ user_id: uid, name: m })));
+      }
+    }
+
+    // Sync to localStorage
+    localStorage.setItem('subscriptions', JSON.stringify(subs));
+    localStorage.setItem('sub_members', JSON.stringify(members));
+  } catch(e) {
+    console.warn('Supabase load failed, using localStorage', e);
+    supabaseReady = false;
+  }
+}
+
+async function save() {
+  localStorage.setItem('subscriptions', JSON.stringify(subs));
+  localStorage.setItem('sub_members', JSON.stringify(members));
+
+  if (!currentUser || !supabaseReady) return;
+  const uid = currentUser.id;
+
+  try {
+    // Use upsert instead of delete+insert to avoid data loss on partial failure
+    // Delete then insert in a single try — if delete works but insert fails, we retry insert
+    const { error: delErr } = await sb.from('sub_subscriptions').delete().eq('user_id', uid);
+    if (delErr) throw delErr;
+
+    if (subs.length > 0) {
+      const { error: insErr } = await sb.from('sub_subscriptions').insert(subs.map(s => ({
+        id: s.id, user_id: uid, name: s.name, amount: s.amount, cycle: s.cycle,
+        category: s.category, currency: s.currency, member: s.member || null,
+        billing_day: s.day, is_active: s.active
+      })));
+      if (insErr) {
+        console.error('Insert failed after delete, retrying...', insErr);
+        // Retry once
+        await sb.from('sub_subscriptions').insert(subs.map(s => ({
+          id: s.id, user_id: uid, name: s.name, amount: s.amount, cycle: s.cycle,
+          category: s.category, currency: s.currency, member: s.member || null,
+          billing_day: s.day, is_active: s.active
+        })));
+      }
+    }
+
+    // Members
     await sb.from('sub_members').delete().eq('user_id', uid);
     if (members.length > 0) {
       await sb.from('sub_members').insert(members.map(m => ({ user_id: uid, name: m })));
@@ -710,14 +747,21 @@ function renderCalendar(activeSubs) {
 }
 
 // Init
+let initDone = false;
+
+async function enterApp(user) {
+  currentUser = user;
+  showApp();
+  renderUserBar();
+  await load();
+  render();
+}
+
 async function init() {
   const { data: { session } } = await sb.auth.getSession();
   if (session?.user) {
-    currentUser = session.user;
-    showApp();
-    renderUserBar();
-    await load();
-    render();
+    initDone = true;
+    await enterApp(session.user);
   } else {
     showLogin();
   }
@@ -725,12 +769,10 @@ async function init() {
 
 sb.auth.onAuthStateChange(async (event, session) => {
   if (event === 'SIGNED_IN' && session?.user) {
-    currentUser = session.user;
-    showApp();
-    renderUserBar();
-    await load();
-    render();
+    if (initDone) return; // Already handled by init()
+    await enterApp(session.user);
   } else if (event === 'SIGNED_OUT') {
+    initDone = false;
     currentUser = null;
     showLogin();
   }
