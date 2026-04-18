@@ -354,99 +354,58 @@ function renderUserBar() {
   `;
 }
 
-// --- Data persistence (Supabase with localStorage fallback) ---
-let supabaseReady = false; // true if tables exist and query succeeded
+// --- Data persistence ---
+// Strategy: use app_settings table (single JSON blob per user) as primary store
+// This avoids delete+insert race conditions and works with existing Supabase project
 
 async function load() {
-  // Load from localStorage first (fast)
+  // Load from localStorage first (instant)
   try { subs = JSON.parse(localStorage.getItem('subscriptions') || '[]'); } catch(e) { subs = []; }
   try { members = JSON.parse(localStorage.getItem('sub_members') || '[]'); } catch(e) { members = []; }
 
   if (!currentUser) return;
   const uid = currentUser.id;
+  const localSubs = [...subs];
+  const localMembers = [...members];
 
-  // Load from Supabase
   try {
-    const { data: subData, error: subErr } = await sb.from('sub_subscriptions').select('*').eq('user_id', uid);
-    if (subErr) throw subErr;
+    const settingsKey = 'sub_' + uid;
+    const { data, error } = await sb.from('app_settings').select('value').eq('key', settingsKey).maybeSingle();
+    if (error) { console.warn('app_settings query error:', error.message); return; }
 
-    // Supabase query succeeded — tables exist
-    supabaseReady = true;
-
-    if (subData && subData.length > 0) {
-      // Cloud has data — use it as source of truth
-      subs = subData.map(r => ({
-        id: r.id, name: r.name, amount: r.amount, cycle: r.cycle,
-        category: r.category, currency: r.currency, member: r.member || '',
-        day: r.billing_day, active: r.is_active
-      }));
-    } else if (subs.length > 0) {
-      // Cloud is empty but localStorage has data — push localStorage to cloud (first-time migration)
-      console.log('Migrating localStorage data to Supabase...');
-      await sb.from('sub_subscriptions').insert(subs.map(s => ({
-        id: s.id, user_id: uid, name: s.name, amount: s.amount, cycle: s.cycle,
-        category: s.category, currency: s.currency, member: s.member || null,
-        billing_day: s.day, is_active: s.active
-      })));
+    if (data?.value) {
+      const cloud = data.value;
+      if (cloud.subs && cloud.subs.length > 0) subs = cloud.subs;
+      if (cloud.members) members = cloud.members;
+      localStorage.setItem('subscriptions', JSON.stringify(subs));
+      localStorage.setItem('sub_members', JSON.stringify(members));
+    } else if (localSubs.length > 0) {
+      console.log('Migrating localStorage to cloud...');
+      await saveToCloud();
     }
-
-    const { data: memData, error: memErr } = await sb.from('sub_members').select('name').eq('user_id', uid);
-    if (!memErr && memData) {
-      if (memData.length > 0) {
-        members = memData.map(m => m.name);
-      } else if (members.length > 0) {
-        // Migrate members too
-        await sb.from('sub_members').insert(members.map(m => ({ user_id: uid, name: m })));
-      }
-    }
-
-    // Sync to localStorage
-    localStorage.setItem('subscriptions', JSON.stringify(subs));
-    localStorage.setItem('sub_members', JSON.stringify(members));
   } catch(e) {
-    console.warn('Supabase load failed, using localStorage', e);
-    supabaseReady = false;
+    console.warn('Cloud load failed, using localStorage', e);
+  }
+}
+
+async function saveToCloud() {
+  if (!currentUser) return;
+  try {
+    const settingsKey = 'sub_' + currentUser.id;
+    const { error } = await sb.from('app_settings').upsert({
+      key: settingsKey,
+      value: { subs, members, updated: Date.now() }
+    }, { onConflict: 'key' });
+    if (error) console.warn('Cloud save error:', error.message);
+  } catch(e) {
+    console.warn('Cloud save failed:', e);
   }
 }
 
 async function save() {
   localStorage.setItem('subscriptions', JSON.stringify(subs));
   localStorage.setItem('sub_members', JSON.stringify(members));
-
-  if (!currentUser || !supabaseReady) return;
-  const uid = currentUser.id;
-
-  try {
-    // Use upsert instead of delete+insert to avoid data loss on partial failure
-    // Delete then insert in a single try — if delete works but insert fails, we retry insert
-    const { error: delErr } = await sb.from('sub_subscriptions').delete().eq('user_id', uid);
-    if (delErr) throw delErr;
-
-    if (subs.length > 0) {
-      const { error: insErr } = await sb.from('sub_subscriptions').insert(subs.map(s => ({
-        id: s.id, user_id: uid, name: s.name, amount: s.amount, cycle: s.cycle,
-        category: s.category, currency: s.currency, member: s.member || null,
-        billing_day: s.day, is_active: s.active
-      })));
-      if (insErr) {
-        console.error('Insert failed after delete, retrying...', insErr);
-        // Retry once
-        await sb.from('sub_subscriptions').insert(subs.map(s => ({
-          id: s.id, user_id: uid, name: s.name, amount: s.amount, cycle: s.cycle,
-          category: s.category, currency: s.currency, member: s.member || null,
-          billing_day: s.day, is_active: s.active
-        })));
-      }
-    }
-
-    // Members
-    await sb.from('sub_members').delete().eq('user_id', uid);
-    if (members.length > 0) {
-      await sb.from('sub_members').insert(members.map(m => ({ user_id: uid, name: m })));
-    }
-  } catch(e) {
-    console.warn('Supabase save failed', e);
-  }
+  await saveToCloud();
 }
 
 function toMonthly(amount, cycle, currency) {
