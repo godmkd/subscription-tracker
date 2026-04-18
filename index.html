@@ -756,7 +756,24 @@ async function enterApp(user) {
   try { subs = JSON.parse(localStorage.getItem('subscriptions') || '[]'); } catch(e) { subs = []; }
   try { members = JSON.parse(localStorage.getItem('sub_members') || '[]'); } catch(e) { members = []; }
   render();
-  // Then sync with cloud in background
+  // Debug: test Supabase connectivity
+  try {
+    showSyncStatus('🔍 測試連線...');
+    const testStart = Date.now();
+    const { count, error: testErr } = await withTimeout(
+      sb.from('app_settings').select('key', { count: 'exact', head: true }), 5000
+    );
+    const elapsed = Date.now() - testStart;
+    if (testErr) {
+      showSyncStatus('❌ 連線錯誤: ' + testErr.message);
+      return;
+    }
+    showSyncStatus('✅ 連線OK (' + elapsed + 'ms), 同步中...');
+  } catch(e) {
+    showSyncStatus('❌ 連線逾時: ' + e.message);
+    return; // Don't try cloud sync if can't even connect
+  }
+  // Then sync with cloud
   await loadFromCloud();
   render();
 }
