@@ -261,6 +261,13 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let currentUser = null;
 
+function withTimeout(promise, ms = 8000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))
+  ]);
+}
+
 const CATEGORIES = {
   entertainment: { label: '娛樂', color: '#f59e0b', icon: '🎮' },
   tools: { label: '工具', color: '#3b82f6', icon: '🔧' },
@@ -367,7 +374,7 @@ async function loadFromCloud() {
   try {
     const settingsKey = 'sub_' + uid;
     showSyncStatus('☁️ 同步中...');
-    const { data, error } = await sb.from('app_settings').select('value').eq('key', settingsKey).maybeSingle();
+    const { data, error } = await withTimeout(sb.from('app_settings').select('value').eq('key', settingsKey).maybeSingle());
 
     if (error) {
       showSyncStatus('❌ 讀取失敗: ' + error.message);
@@ -407,7 +414,7 @@ async function saveToCloud() {
       updated_at: new Date().toISOString()
     };
     console.log('saveToCloud key:', settingsKey, 'subs:', subs.length, 'members:', members.length);
-    const { error } = await sb.from('app_settings').upsert(payload, { onConflict: 'key' });
+    const { error } = await withTimeout(sb.from('app_settings').upsert(payload, { onConflict: 'key' }));
     if (error) {
       console.error('Cloud save error:', error);
       showSyncStatus('❌ 儲存失敗: ' + error.message);
