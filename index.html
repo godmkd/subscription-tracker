@@ -214,6 +214,7 @@ select option,select optgroup{background:#1a1a2e;color:#e0e0e0}
     <select id="addCycle">
       <option value="monthly">每月</option>
       <option value="quarterly">每季</option>
+      <option value="semiannually">每半年</option>
       <option value="yearly">每年</option>
       <option value="weekly">每週</option>
     </select>
@@ -454,6 +455,7 @@ function toMonthly(amount, cycle, currency) {
   const twd = amount * (RATES[currency] || 1);
   if (cycle === 'weekly') return twd * 4.33;
   if (cycle === 'quarterly') return twd / 3;
+  if (cycle === 'semiannually') return twd / 6;
   if (cycle === 'yearly') return twd / 12;
   return twd;
 }
@@ -461,7 +463,7 @@ function toMonthly(amount, cycle, currency) {
 function fmtMoney(n) { return 'NT$' + Math.round(n).toLocaleString(); }
 
 function cycleLabel(c) {
-  return { monthly: '每月', quarterly: '每季', yearly: '每年', weekly: '每週' }[c] || c;
+  return { monthly: '每月', quarterly: '每季', semiannually: '每半年', yearly: '每年', weekly: '每週' }[c] || c;
 }
 
 // --- Member management ---
@@ -576,7 +578,7 @@ function editSub(id) {
   const s = subs.find(x => x.id === id);
   if (!s) return;
   const catOptions = Object.entries(CATEGORIES).map(([k,v]) => `<option value="${k}" ${s.category===k?'selected':''}>${v.icon} ${v.label}</option>`).join('');
-  const cycleOptions = [['monthly','每月'],['quarterly','每季'],['yearly','每年'],['weekly','每週']].map(([k,l]) => `<option value="${k}" ${s.cycle===k?'selected':''}>${l}</option>`).join('');
+  const cycleOptions = [['monthly','每月'],['quarterly','每季'],['semiannually','每半年'],['yearly','每年'],['weekly','每週']].map(([k,l]) => `<option value="${k}" ${s.cycle===k?'selected':''}>${l}</option>`).join('');
   const currOptions = ['TWD','USD','JPY'].map(c => `<option value="${c}" ${s.currency===c?'selected':''}>${c}</option>`).join('');
   const memOptions = `<option value="">不指定</option>` + members.map(m => `<option value="${m}" ${s.member===m?'selected':''}>${m}</option>`).join('');
 
