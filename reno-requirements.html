@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📋 裝潢需求表</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0a0a1a;--surface:#12122a;--surface2:#1a1a3a;--surface3:#22224a;--border:#2a2a5a;--text:#e0e0f0;--text2:#9090b0;--accent:#6366f1;--accent2:#818cf8;--green:#22c55e;--red:#ef4444;--yellow:#eab308;--radius:10px}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
+button{cursor:pointer;font-family:inherit;border:none;background:none;color:var(--text)}
+input,select,textarea{font-family:inherit;font-size:14px;background:var(--surface3);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:8px 12px;width:100%;outline:none;transition:border .2s}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+input[type=number]{width:100px}
+input[type=checkbox],input[type=radio]{width:auto;margin-right:6px;accent-color:var(--accent)}
+select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%239090b0'%3E%3Cpath d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:30px}
+textarea{resize:vertical;min-height:60px}
+
+/* Header */
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.header h1{font-size:22px;font-weight:700}
+.header-actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:8px 16px;border-radius:6px;font-size:13px;font-weight:600;transition:all .2s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent2)}
+.btn-danger{background:var(--red);color:#fff}
+.btn-danger:hover{opacity:.85}
+.btn-outline{border:1px solid var(--border);color:var(--text2)}
+.btn-outline:hover{border-color:var(--accent);color:var(--accent)}
+
+/* Progress */
+.progress-wrap{padding:12px 24px;background:var(--surface)}
+.progress-bar{height:6px;background:var(--surface3);border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--green));border-radius:3px;transition:width .4s}
+.progress-label{font-size:12px;color:var(--text2);margin-top:4px}
+
+/* Layout */
+.layout{display:flex;flex:1;overflow:hidden}
+.sidebar{width:240px;min-width:240px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto}
+.sidebar-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.sidebar-header span{font-size:13px;font-weight:600;color:var(--text2)}
+.sidebar .add-btn{width:28px;height:28px;border-radius:6px;background:var(--accent);color:#fff;font-size:18px;display:flex;align-items:center;justify-content:center}
+.sidebar .add-btn:hover{background:var(--accent2)}
+.space-list{flex:1;overflow-y:auto;padding:8px}
+.space-item{display:flex;align-items:center;padding:10px 12px;border-radius:8px;cursor:pointer;transition:background .15s;gap:8px;margin-bottom:2px}
+.space-item:hover{background:var(--surface2)}
+.space-item.active{background:var(--surface3);border:1px solid var(--border)}
+.space-item .name{flex:1;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.space-item .check{color:var(--green);font-size:14px;flex-shrink:0}
+.space-item .del-btn{opacity:0;color:var(--red);font-size:16px;flex-shrink:0;padding:2px 4px;border-radius:4px;transition:opacity .15s}
+.space-item:hover .del-btn{opacity:1}
+.space-item .del-btn:hover{background:rgba(239,68,68,.15)}
+
+/* Main content */
+.main{flex:1;overflow-y:auto;padding:24px;max-width:800px}
+.main.full{max-width:100%}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text2);gap:12px;font-size:15px}
+
+/* Section */
+.section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:16px;overflow:hidden}
+.section-header{padding:14px 18px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;user-select:none;transition:background .15s}
+.section-header:hover{background:var(--surface2)}
+.section-header h3{font-size:15px;font-weight:600}
+.section-header .arrow{transition:transform .2s;color:var(--text2);font-size:12px}
+.section-header .arrow.collapsed{transform:rotate(-90deg)}
+.section-body{padding:18px;border-top:1px solid var(--border);display:grid;gap:16px}
+.section-body.hidden{display:none}
+
+/* Form fields */
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:13px;font-weight:600;color:var(--text2)}
+.field-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.field-row input[type=number]{flex-shrink:0}
+.field-row input[type=text]{flex:1;min-width:150px}
+.check-group{display:flex;flex-wrap:wrap;gap:8px 16px}
+.check-group label{display:flex;align-items:center;font-size:13px;font-weight:normal;color:var(--text);cursor:pointer}
+.radio-group{display:flex;gap:16px}
+.radio-group label{display:flex;align-items:center;font-size:13px;font-weight:normal;color:var(--text);cursor:pointer}
+.custom-input{display:flex;gap:6px;align-items:center;margin-top:4px}
+.custom-input input{max-width:200px}
+
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-overlay.show{opacity:1;pointer-events:auto}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;min-width:300px;max-width:90vw}
+.modal h3{margin-bottom:16px}
+.modal .modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:20px}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:600;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+
+/* Mobile */
+@media(max-width:768px){
+  .sidebar{display:none}
+  .mobile-tabs{display:flex !important;overflow-x:auto;background:var(--surface);border-bottom:1px solid var(--border);padding:8px;gap:6px;flex-shrink:0}
+  .mobile-tabs .tab{padding:8px 14px;border-radius:6px;font-size:12px;white-space:nowrap;border:1px solid var(--border);flex-shrink:0}
+  .mobile-tabs .tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  .mobile-tabs .tab .check{color:var(--green);margin-left:4px}
+  .mobile-tabs .add-tab{background:var(--surface3);border:1px dashed var(--border);color:var(--text2)}
+  .main{padding:16px}
+}
+.mobile-tabs{display:none}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📋 裝潢需求表</h1>
+  <div class="header-actions">
+    <button class="btn btn-primary" onclick="exportData()">📤 匯出需求</button>
+    <button class="btn btn-danger" onclick="confirmClear()">🗑️ 清除全部</button>
+  </div>
+</div>
+
+<div class="progress-wrap">
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <div class="progress-label" id="progressLabel"></div>
+</div>
+
+<div class="mobile-tabs" id="mobileTabs"></div>
+
+<div class="layout">
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <span>空間列表</span>
+      <button class="add-btn" onclick="showAddModal()" title="新增空間">+</button>
+    </div>
+    <div class="space-list" id="spaceList"></div>
+  </div>
+  <div class="main" id="mainContent">
+    <div class="empty-state">
+      <div style="font-size:40px">🏠</div>
+      <div>請從左側選擇或新增空間</div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="addModal">
+  <div class="modal">
+    <h3>新增空間</h3>
+    <div class="field">
+      <label>選擇預設空間</label>
+      <select id="presetSelect">
+        <option value="">— 選擇 —</option>
+      </select>
+    </div>
+    <div style="text-align:center;color:var(--text2);margin:8px 0;font-size:13px">或</div>
+    <div class="field">
+      <label>自訂空間名稱</label>
+      <input type="text" id="customSpaceName" placeholder="例如：更衣室、視聽室...">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="hideAddModal()">取消</button>
+      <button class="btn btn-primary" onclick="addSpace()">新增</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="clearModal">
+  <div class="modal">
+    <h3>確認清除</h3>
+    <p style="color:var(--text2);font-size:14px;margin-bottom:8px">確定要清除所有空間及填寫的資料嗎？此操作無法復原。</p>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="hideClearModal()">取消</button>
+      <button class="btn btn-danger" onclick="clearAll()">確認清除</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const PRESETS = ['客廳','餐廳','廚房','主臥','次臥','兒童房','書房','浴室(主)','浴室(客)','玄關','陽台','儲藏室'];
+const STYLES = ['北歐','日式','現代簡約','工業風','古典','鄉村','混搭','其他'];
+const LIGHT_TYPES = ['主燈','間接照明','壁燈','崁燈','軌道燈','感應燈','夜燈'];
+const APPLIANCES = ['220V烤箱','免治馬桶','電熱水器','暖風機','洗碗機','乾衣機'];
+const STORAGE_TYPES = ['衣櫃','書櫃','鞋櫃','電視櫃','餐櫃','吊櫃','系統櫃'];
+const CURTAIN_TYPES = ['布簾','紗簾','百葉','捲簾','蜂巢簾','無'];
+const FLOOR_TYPES = ['木地板','超耐磨','磁磚','SPC','磐多魔','保留原有','其他'];
+
+let spaces = [];
+let activeSpaceId = null;
+
+function generateId(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6) }
+
+function defaultData(){
+  return {
+    purpose:'', people:'', style:'', styleCustom:'',
+    outlets:'', outletNote:'', networkCheck:false, networkCount:'',
+    lights:[], appliances:[], applianceCustom:'',
+    storageTypes:[], storageStyle:'', storageNote:'',
+    curtain:'', floor:'', notes:'', budget:''
+  };
+}
+
+function load(){
+  try{
+    const d=JSON.parse(localStorage.getItem('renovation-req'));
+    if(d&&d.spaces){spaces=d.spaces;activeSpaceId=d.activeSpaceId||null}
+  }catch(e){}
+}
+
+function save(){
+  localStorage.setItem('renovation-req',JSON.stringify({spaces,activeSpaceId}));
+}
+
+function isSpaceFilled(s){
+  const d=s.data;
+  return !!(d.purpose||d.people||d.style||d.lights.length||d.storageTypes.length||d.curtain||d.floor||d.notes||d.budget);
+}
+
+function updateProgress(){
+  const total=spaces.length;
+  const filled=spaces.filter(isSpaceFilled).length;
+  const pct=total?Math.round(filled/total*100):0;
+  document.getElementById('progressFill').style.width=pct+'%';
+  document.getElementById('progressLabel').textContent=total?`已填寫 ${filled} / ${total} 個空間 (${pct}%)`:'尚未新增空間';
+}
+
+function renderSidebar(){
+  const list=document.getElementById('spaceList');
+  list.innerHTML=spaces.map(s=>`
+    <div class="space-item ${s.id===activeSpaceId?'active':''}" onclick="selectSpace('${s.id}')">
+      <span class="name">${esc(s.name)}</span>
+      ${isSpaceFilled(s)?'<span class="check">✅</span>':''}
+      <button class="del-btn" onclick="event.stopPropagation();deleteSpace('${s.id}')" title="刪除">✕</button>
+    </div>
+  `).join('');
+}
+
+function renderMobileTabs(){
+  const el=document.getElementById('mobileTabs');
+  el.innerHTML=spaces.map(s=>`
+    <button class="tab ${s.id===activeSpaceId?'active':''}" onclick="selectSpace('${s.id}')">
+      ${esc(s.name)}${isSpaceFilled(s)?'<span class="check">✅</span>':''}
+    </button>
+  `).join('')+`<button class="tab add-tab" onclick="showAddModal()">+ 新增</button>`;
+}
+
+function selectSpace(id){
+  activeSpaceId=id;
+  save();
+  renderSidebar();
+  renderMobileTabs();
+  renderForm();
+}
+
+function renderForm(){
+  const main=document.getElementById('mainContent');
+  const space=spaces.find(s=>s.id===activeSpaceId);
+  if(!space){
+    main.innerHTML='<div class="empty-state"><div style="font-size:40px">🏠</div><div>請從左側選擇或新增空間</div></div>';
+    return;
+  }
+  const d=space.data;
+  main.innerHTML=`
+    <h2 style="margin-bottom:20px;font-size:20px">${esc(space.name)}</h2>
+
+    ${section('📍 基本需求','basic',`
+      <div class="field">
+        <label>用途描述</label>
+        <input type="text" value="${esc(d.purpose)}" onchange="upd('purpose',this.value)" placeholder="例如：全家人看電視、聊天的空間">
+      </div>
+      <div class="field">
+        <label>使用人數</label>
+        <input type="number" min="0" value="${esc(d.people)}" onchange="upd('people',this.value)" placeholder="人">
+      </div>
+      <div class="field">
+        <label>風格偏好</label>
+        <select onchange="upd('style',this.value)">
+          <option value="">— 選擇 —</option>
+          ${STYLES.map(s=>`<option value="${s}" ${d.style===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+        ${d.style==='其他'?`<div class="custom-input" style="margin-top:6px"><input type="text" value="${esc(d.styleCustom)}" onchange="upd('styleCustom',this.value)" placeholder="自訂風格"></div>`:''}
+      </div>
+    `)}
+
+    ${section('🔌 水電需求','electric',`
+      <div class="field">
+        <label>插座數量 + 位置備註</label>
+        <div class="field-row">
+          <input type="number" min="0" value="${esc(d.outlets)}" onchange="upd('outlets',this.value)" placeholder="數量">
+          <input type="text" value="${esc(d.outletNote)}" onchange="upd('outletNote',this.value)" placeholder="位置備註：例如電視牆後方、書桌旁">
+        </div>
+      </div>
+      <div class="field">
+        <label>網路孔</label>
+        <div class="field-row">
+          <label style="font-weight:normal;color:var(--text)"><input type="checkbox" ${d.networkCheck?'checked':''} onchange="upd('networkCheck',this.checked)"> 需要網路孔</label>
+          ${d.networkCheck?`<input type="number" min="1" value="${esc(d.networkCount)}" onchange="upd('networkCount',this.value)" placeholder="數量">`:''}
+        </div>
+      </div>
+      <div class="field">
+        <label>燈光類型</label>
+        <div class="check-group">
+          ${LIGHT_TYPES.map(t=>`<label><input type="checkbox" ${d.lights.includes(t)?'checked':''} onchange="toggleArr('lights','${t}',this.checked)"> ${t}</label>`).join('')}
+        </div>
+      </div>
+      <div class="field">
+        <label>特殊電器</label>
+        <div class="check-group">
+          ${APPLIANCES.map(t=>`<label><input type="checkbox" ${d.appliances.includes(t)?'checked':''} onchange="toggleArr('appliances','${t}',this.checked)"> ${t}</label>`).join('')}
+        </div>
+        <div class="custom-input">
+          <label style="font-weight:normal;font-size:13px;color:var(--text2)">其他：</label>
+          <input type="text" value="${esc(d.applianceCustom)}" onchange="upd('applianceCustom',this.value)" placeholder="自訂電器">
+        </div>
+      </div>
+    `)}
+
+    ${section('🗄️ 收納需求','storage',`
+      <div class="field">
+        <label>收納類型</label>
+        <div class="check-group">
+          ${STORAGE_TYPES.map(t=>`<label><input type="checkbox" ${d.storageTypes.includes(t)?'checked':''} onchange="toggleArr('storageTypes','${t}',this.checked)"> ${t}</label>`).join('')}
+        </div>
+      </div>
+      <div class="field">
+        <label>開放式 / 門片式</label>
+        <div class="radio-group">
+          <label><input type="radio" name="storageStyle" value="開放式" ${d.storageStyle==='開放式'?'checked':''} onchange="upd('storageStyle',this.value)"> 開放式</label>
+          <label><input type="radio" name="storageStyle" value="門片式" ${d.storageStyle==='門片式'?'checked':''} onchange="upd('storageStyle',this.value)"> 門片式</label>
+          <label><input type="radio" name="storageStyle" value="混合" ${d.storageStyle==='混合'?'checked':''} onchange="upd('storageStyle',this.value)"> 混合</label>
+        </div>
+      </div>
+      <div class="field">
+        <label>特殊需求備註</label>
+        <input type="text" value="${esc(d.storageNote)}" onchange="upd('storageNote',this.value)" placeholder="例如：需要保險箱空間、隱藏式門片">
+      </div>
+    `)}
+
+    ${section('🪟 其他','other',`
+      <div class="field">
+        <label>窗簾類型</label>
+        <select onchange="upd('curtain',this.value)">
+          <option value="">— 選擇 —</option>
+          ${CURTAIN_TYPES.map(t=>`<option value="${t}" ${d.curtain===t?'selected':''}>${t}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <label>地板偏好</label>
+        <select onchange="upd('floor',this.value)">
+          <option value="">— 選擇 —</option>
+          ${FLOOR_TYPES.map(t=>`<option value="${t}" ${d.floor===t?'selected':''}>${t}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <label>特別備註</label>
+        <textarea onchange="upd('notes',this.value)" placeholder="任何其他需求或想法...">${esc(d.notes)}</textarea>
+      </div>
+      <div class="field">
+        <label>預算上限 (選填)</label>
+        <input type="number" min="0" value="${esc(d.budget)}" onchange="upd('budget',this.value)" placeholder="元" style="width:160px">
+      </div>
+    `)}
+  `;
+}
+
+const collapsed=new Set();
+function section(title,key,body){
+  const c=collapsed.has(key);
+  return `<div class="section">
+    <div class="section-header" onclick="toggleSection('${key}')">
+      <h3>${title}</h3>
+      <span class="arrow ${c?'collapsed':''}">▼</span>
+    </div>
+    <div class="section-body ${c?'hidden':''}">${body}</div>
+  </div>`;
+}
+function toggleSection(key){
+  if(collapsed.has(key)) collapsed.delete(key); else collapsed.add(key);
+  renderForm();
+}
+
+function upd(field,val){
+  const space=spaces.find(s=>s.id===activeSpaceId);
+  if(!space) return;
+  space.data[field]=val;
+  save();
+  updateProgress();
+  renderSidebar();
+  renderMobileTabs();
+  // re-render for conditional fields
+  if(field==='style'||field==='networkCheck') renderForm();
+}
+
+function toggleArr(field,val,checked){
+  const space=spaces.find(s=>s.id===activeSpaceId);
+  if(!space) return;
+  const arr=space.data[field];
+  if(checked&&!arr.includes(val)) arr.push(val);
+  if(!checked){const i=arr.indexOf(val);if(i>-1)arr.splice(i,1)}
+  save();
+  updateProgress();
+  renderSidebar();
+  renderMobileTabs();
+}
+
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
+// Add/Delete spaces
+function showAddModal(){
+  const sel=document.getElementById('presetSelect');
+  const used=new Set(spaces.map(s=>s.name));
+  sel.innerHTML='<option value="">— 選擇 —</option>'+PRESETS.filter(p=>!used.has(p)).map(p=>`<option value="${p}">${p}</option>`).join('');
+  document.getElementById('customSpaceName').value='';
+  document.getElementById('addModal').classList.add('show');
+}
+function hideAddModal(){document.getElementById('addModal').classList.remove('show')}
+
+function addSpace(){
+  const preset=document.getElementById('presetSelect').value;
+  const custom=document.getElementById('customSpaceName').value.trim();
+  const name=custom||preset;
+  if(!name){toast('請選擇或輸入空間名稱');return}
+  if(spaces.some(s=>s.name===name)){toast('此空間已存在');return}
+  const s={id:generateId(),name,data:defaultData()};
+  spaces.push(s);
+  activeSpaceId=s.id;
+  save();
+  hideAddModal();
+  renderAll();
+}
+
+function deleteSpace(id){
+  const s=spaces.find(x=>x.id===id);
+  if(!s||!confirm(`確定刪除「${s.name}」？`)) return;
+  spaces=spaces.filter(x=>x.id!==id);
+  if(activeSpaceId===id) activeSpaceId=spaces.length?spaces[0].id:null;
+  save();
+  renderAll();
+}
+
+function confirmClear(){document.getElementById('clearModal').classList.add('show')}
+function hideClearModal(){document.getElementById('clearModal').classList.remove('show')}
+function clearAll(){
+  spaces=[];activeSpaceId=null;
+  localStorage.removeItem('renovation-req');
+  hideClearModal();
+  renderAll();
+  toast('已清除全部資料');
+}
+
+// Export
+function exportData(){
+  if(!spaces.length){toast('尚無資料可匯出');return}
+  let text='═══════════════════════════════\n';
+  text+='        📋 裝潢需求表\n';
+  text+='═══════════════════════════════\n\n';
+  for(const s of spaces){
+    const d=s.data;
+    text+=`▌ ${s.name}\n${'─'.repeat(30)}\n`;
+    // Basic
+    if(d.purpose||d.people||d.style){
+      text+='\n📍 基本需求\n';
+      if(d.purpose) text+=`   用途描述：${d.purpose}\n`;
+      if(d.people) text+=`   使用人數：${d.people} 人\n`;
+      if(d.style) text+=`   風格偏好：${d.style}${d.style==='其他'&&d.styleCustom?' ('+d.styleCustom+')':''}\n`;
+    }
+    // Electric
+    if(d.outlets||d.networkCheck||d.lights.length||d.appliances.length||d.applianceCustom){
+      text+='\n🔌 水電需求\n';
+      if(d.outlets) text+=`   插座數量：${d.outlets}${d.outletNote?' （'+d.outletNote+'）':''}\n`;
+      if(d.networkCheck) text+=`   網路孔：${d.networkCount||'?'} 個\n`;
+      if(d.lights.length) text+=`   燈光類型：${d.lights.join('、')}\n`;
+      const allApp=[...d.appliances];
+      if(d.applianceCustom) allApp.push(d.applianceCustom);
+      if(allApp.length) text+=`   特殊電器：${allApp.join('、')}\n`;
+    }
+    // Storage
+    if(d.storageTypes.length||d.storageStyle||d.storageNote){
+      text+='\n🗄️ 收納需求\n';
+      if(d.storageTypes.length) text+=`   收納類型：${d.storageTypes.join('、')}\n`;
+      if(d.storageStyle) text+=`   形式：${d.storageStyle}\n`;
+      if(d.storageNote) text+=`   備註：${d.storageNote}\n`;
+    }
+    // Other
+    if(d.curtain||d.floor||d.notes||d.budget){
+      text+='\n🪟 其他\n';
+      if(d.curtain) text+=`   窗簾類型：${d.curtain}\n`;
+      if(d.floor) text+=`   地板偏好：${d.floor}\n`;
+      if(d.notes) text+=`   特別備註：${d.notes}\n`;
+      if(d.budget) text+=`   預算上限：$${Number(d.budget).toLocaleString()} 元\n`;
+    }
+    text+='\n';
+  }
+  text+='═══════════════════════════════\n';
+
+  navigator.clipboard.writeText(text).then(()=>toast('已複製到剪貼簿！')).catch(()=>{
+    // fallback
+    const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();
+    toast('已複製到剪貼簿！');
+  });
+}
+
+function toast(msg){
+  const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),2500);
+}
+
+function renderAll(){
+  renderSidebar();
+  renderMobileTabs();
+  renderForm();
+  updateProgress();
+}
+
+// Init
+load();
+renderAll();
+
+// Close modals on overlay click
+document.querySelectorAll('.modal-overlay').forEach(el=>{
+  el.addEventListener('click',e=>{if(e.target===el)el.classList.remove('show')});
+});
+
+// Keyboard: Enter in add modal
+document.getElementById('customSpaceName').addEventListener('keydown',e=>{if(e.key==='Enter')addSpace()});
+</script>
+</body>
+</html>
