@@ -588,10 +588,11 @@ function handleClick(sx, sy) {
   }
 }
 
+let lastClickTime = 0;
 function handleDblClick(sx, sy) {
   if (state.mode === 'draw' && state.currentPoly.length >= 3) {
-    // Remove the last point added by the single click that preceded dblclick
-    // (browsers fire click before dblclick)
+    // Remove the extra point added by single click that preceded dblclick
+    if (state.currentPoly.length > 3) state.currentPoly.pop();
     closePoly();
   }
 }
@@ -694,8 +695,12 @@ function zoomAt(sx, sy, factor) {
 let mouseDown = false;
 let mouseDownPos = null;
 let hasMoved = false;
+let lastTouchTime = 0; // Prevent duplicate mouse events after touch
 
 function onPointerDown(e) {
+  // Skip mouse events that fire after touch events (prevents double points)
+  if (!e.touches && Date.now() - lastTouchTime < 500) return;
+  if (e.touches) lastTouchTime = Date.now();
   if (e.touches && e.touches.length === 2) {
     lastPinchDist = dist(
       { x: e.touches[0].clientX, y: e.touches[0].clientY },
@@ -714,6 +719,7 @@ function onPointerDown(e) {
 }
 
 function onPointerMove(e) {
+  if (!e.touches && Date.now() - lastTouchTime < 500) return;
   if (e.touches && e.touches.length === 2) {
     e.preventDefault();
     const d = dist(
@@ -887,6 +893,7 @@ function confirmScale() {
 roomCancelBtn.addEventListener('click', () => {
   roomModal.classList.add('hidden');
   pendingPolyPoints = null;
+  mouseDown = false; mouseDownPos = null; hasMoved = false; isPanning = false;
   render();
 });
 roomConfirmBtn.addEventListener('click', confirmRoom);
@@ -895,6 +902,11 @@ roomNameInput.addEventListener('keydown', e => { if (e.key === 'Enter') confirmR
 function confirmRoom() {
   roomModal.classList.add('hidden');
   finalizeRoom(roomNameInput.value.trim());
+  // Reset touch/mouse state to prevent stuck interactions
+  mouseDown = false;
+  mouseDownPos = null;
+  hasMoved = false;
+  isPanning = false;
 }
 
 // --- Keyboard ---
