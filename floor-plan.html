@@ -29,8 +29,8 @@ body {
 .mode-badge.scale { background: rgba(251,191,36,0.2); border-color: rgba(251,191,36,0.4); color: #fcd34d; }
 .toolbar {
   padding: 8px 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
-  background: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.06);
-  flex-shrink: 0; z-index: 10;
+  background: #0a0a1a; border-bottom: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0; z-index: 10; position: sticky; top: 0;
 }
 .btn {
   padding: 6px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12);
@@ -767,8 +767,16 @@ function onPointerUp(e) {
 canvas.addEventListener('mousedown', onPointerDown);
 canvas.addEventListener('mousemove', onPointerMove);
 canvas.addEventListener('mouseup', onPointerUp);
-canvas.addEventListener('touchstart', (e) => { e.preventDefault(); onPointerDown(e); }, { passive: false });
-canvas.addEventListener('touchmove', (e) => { e.preventDefault(); onPointerMove(e); }, { passive: false });
+canvas.addEventListener('touchstart', (e) => {
+  // Only prevent default for multi-touch (pinch zoom) or when in pan mode
+  if (e.touches.length >= 2 || state.mode === 'pan') e.preventDefault();
+  onPointerDown(e);
+}, { passive: false });
+canvas.addEventListener('touchmove', (e) => {
+  // Always prevent default on move to avoid page scroll while drawing
+  if (mouseDown || (e.touches && e.touches.length >= 2)) e.preventDefault();
+  onPointerMove(e);
+}, { passive: false });
 canvas.addEventListener('touchend', (e) => { onPointerUp(e); }, { passive: false });
 canvas.addEventListener('wheel', handleWheel, { passive: false });
 canvas.addEventListener('dblclick', (e) => {
