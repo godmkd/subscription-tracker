@@ -4,7 +4,26 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>📋 裝潢需求表</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
+.login-page{display:flex;align-items:center;justify-content:center;min-height:100vh;width:100%;position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:999}
+.login-card{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:48px 40px;text-align:center;box-shadow:0 25px 60px rgba(0,0,0,.5);max-width:420px;width:90%}
+.login-card h1{font-size:1.8rem;color:var(--accent2);margin-bottom:8px}
+.login-card p{color:var(--text2);margin-bottom:24px;font-size:.9rem}
+.btn-line{display:flex;align-items:center;gap:10px;background:#06C755;color:#fff;border:none;border-radius:12px;padding:14px 32px;font-size:1rem;font-weight:700;cursor:pointer;width:100%;justify-content:center}
+.btn-line:hover{background:#05b04c}
+.login-divider{margin:20px 0 16px;position:relative;border-top:1px solid var(--border)}
+.login-divider span{position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--surface);padding:0 14px;font-size:.82rem;color:var(--text2)}
+.login-input{width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:10px;margin-bottom:10px;font-size:.95rem;background:var(--surface3);color:var(--text)}
+.login-input:focus{border-color:var(--accent)}
+.btn-email{display:flex;align-items:center;gap:8px;background:var(--surface3);color:var(--text);border:1px solid var(--border);border-radius:12px;padding:12px 32px;font-size:.95rem;font-weight:600;cursor:pointer;width:100%;justify-content:center}
+.login-msg{font-size:.82em;margin-top:10px;display:none}
+.app-page{display:none}
+.user-bar{display:flex;align-items:center;gap:8px;margin-left:auto}
+.user-bar img{width:28px;height:28px;border-radius:50%}
+.user-bar .name{font-size:.82em;color:var(--accent2)}
+.btn-logout{padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--text2);cursor:pointer;font-size:.75em}
+
 *{margin:0;padding:0;box-sizing:border-box}
 :root{--bg:#0a0a1a;--surface:#12122a;--surface2:#1a1a3a;--surface3:#22224a;--border:#2a2a5a;--text:#e0e0f0;--text2:#9090b0;--accent:#6366f1;--accent2:#818cf8;--green:#22c55e;--red:#ef4444;--yellow:#eab308;--radius:10px}
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
@@ -105,11 +124,27 @@ textarea{resize:vertical;min-height:60px}
 </head>
 <body>
 
+<div id="loginPage" class="login-page">
+  <div class="login-card">
+    <div style="font-size:3rem;margin-bottom:12px">📋</div>
+    <h1>裝潢需求表</h1>
+    <p>記錄你的裝潢需求，分享給設計師</p>
+    <button class="btn-line" onclick="doLogin()">🟢 LINE 登入</button>
+    <div class="login-divider"><span>或使用信箱</span></div>
+    <input class="login-input" id="loginEmail" type="email" placeholder="信箱" onkeydown="if(event.key==='Enter')doEmailLogin()">
+    <input class="login-input" id="loginPassword" type="password" placeholder="密碼" onkeydown="if(event.key==='Enter')doEmailLogin()">
+    <button class="btn-email" onclick="doEmailLogin()">📧 信箱登入 / 註冊</button>
+    <div class="login-msg" id="loginMsg"></div>
+  </div>
+</div>
+
+<div id="appPage" class="app-page">
 <div class="header">
   <h1>📋 裝潢需求表</h1>
   <div class="header-actions">
     <button class="btn btn-primary" onclick="exportData()">📤 匯出需求</button>
     <button class="btn btn-danger" onclick="confirmClear()">🗑️ 清除全部</button>
+    <div class="user-bar" id="userBar"></div>
   </div>
 </div>
 
@@ -167,9 +202,73 @@ textarea{resize:vertical;min-height:60px}
     </div>
   </div>
 </div>
+</div><!-- end appPage -->
 
 <div class="toast" id="toast"></div>
 
+<script>
+const SUPABASE_URL = 'https://kvnwfesbnxzoqpdgauov.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt2bndmZXNibnh6b3FwZGdhdW92Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwNTAwMjIsImV4cCI6MjA5MDYyNjAyMn0.wpf9rUcPiaTUkDVhVgUaxBJ2rA4WaAMHG7tgSv9BOOQ';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let currentUser = null;
+
+function showLogin(){ document.getElementById('loginPage').style.display='flex'; document.getElementById('appPage').style.display='none'; }
+function showApp(){ document.getElementById('loginPage').style.display='none'; document.getElementById('appPage').style.display='block'; }
+
+async function doLogin(){
+  const { error } = await sb.auth.signInWithOAuth({ provider:'custom:line', options:{ redirectTo: location.origin+location.pathname, queryParams:{prompt:'consent'} } });
+  if(error) alert('登入失敗: '+error.message);
+}
+
+async function doEmailLogin(){
+  const email=document.getElementById('loginEmail').value.trim();
+  const password=document.getElementById('loginPassword').value;
+  const msg=document.getElementById('loginMsg');
+  if(!email||!password){msg.style.display='block';msg.style.color='var(--red)';msg.textContent='請輸入信箱和密碼';return}
+  const {data,error}=await sb.auth.signInWithPassword({email,password});
+  if(!error&&data.user) return;
+  if(error&&(error.message.includes('Invalid')||error.message.includes('credentials'))){
+    const {data:sd,error:se}=await sb.auth.signUp({email,password});
+    if(se){msg.style.display='block';msg.style.color='var(--red)';msg.textContent='註冊失敗: '+se.message;return}
+    if(sd.user&&!sd.session){msg.style.display='block';msg.style.color='var(--green)';msg.textContent='已寄出驗證信，請查收後重新登入';return}
+    return;
+  }
+  msg.style.display='block';msg.style.color='var(--red)';msg.textContent='登入失敗: '+(error?.message||'');
+}
+
+async function doLogout(){ currentUser=null; showLogin(); try{await sb.auth.signOut()}catch(e){} }
+
+function renderUserBar(){
+  const name=currentUser?.user_metadata?.name||currentUser?.email||'使用者';
+  const avatar=currentUser?.user_metadata?.picture||currentUser?.user_metadata?.avatar_url||'';
+  document.getElementById('userBar').innerHTML=`
+    ${avatar?`<img src="${avatar}">`:''}
+    <span class="name">${name}</span>
+    <button class="btn-logout" onclick="doLogout()">登出</button>`;
+}
+
+async function saveToCloud(){
+  if(!currentUser) return;
+  try{
+    await sb.from('app_settings').upsert({
+      key:'reno_'+currentUser.id,
+      value:{spaces,activeSpaceId,updated:Date.now()},
+      updated_at:new Date().toISOString()
+    },{onConflict:'key'});
+  }catch(e){console.warn('Cloud save failed:',e)}
+}
+
+async function loadFromCloud(){
+  if(!currentUser) return;
+  try{
+    const {data,error}=await sb.from('app_settings').select('value').eq('key','reno_'+currentUser.id).maybeSingle();
+    if(error||!data?.value) return;
+    const cloud=data.value;
+    if(cloud.spaces&&cloud.spaces.length>0){spaces=cloud.spaces;activeSpaceId=cloud.activeSpaceId||null}
+    localStorage.setItem('renovation-req',JSON.stringify({spaces,activeSpaceId}));
+  }catch(e){console.warn('Cloud load failed:',e)}
+}
+</script>
 <script>
 const PRESETS = ['客廳','餐廳','廚房','主臥','次臥','兒童房','書房','浴室(主)','浴室(客)','玄關','陽台','儲藏室'];
 const STYLES = ['北歐','日式','現代簡約','工業風','古典','鄉村','混搭','其他'];
@@ -203,6 +302,7 @@ function load(){
 
 function save(){
   localStorage.setItem('renovation-req',JSON.stringify({spaces,activeSpaceId}));
+  saveToCloud();
 }
 
 function isSpaceFilled(s){
@@ -507,8 +607,29 @@ function renderAll(){
 }
 
 // Init
-load();
-renderAll();
+async function enterApp(user){
+  currentUser=user;
+  showApp();
+  renderUserBar();
+  load();
+  renderAll();
+  await loadFromCloud();
+  renderAll();
+}
+
+async function init(){
+  const {data:{session}}=await sb.auth.getSession();
+  if(session?.user){await enterApp(session.user)}
+  else{showLogin()}
+}
+
+let initDone=false;
+sb.auth.onAuthStateChange(async(event,session)=>{
+  if(event==='SIGNED_IN'&&session?.user&&!initDone){initDone=true;await enterApp(session.user)}
+  else if(event==='SIGNED_OUT'){initDone=false;currentUser=null;showLogin()}
+});
+
+init().then(()=>{initDone=true});
 
 // Close modals on overlay click
 document.querySelectorAll('.modal-overlay').forEach(el=>{
