@@ -221,7 +221,13 @@ let state = {
   currentPoly: [],
   selectedRoom: -1,
   // transform
-  offsetX: 0, offsetY: 0, zoom: 1
+  offsetX: 0, offsetY: 0, zoom: 1,
+  // drag & preview
+  cursorPos: null, // { x, y } in screen coords, for preview point
+  draggingPoint: null, // { type: 'current'|'room', roomIndex, pointIndex }
+  hoveredPoint: null, // { type, roomIndex, pointIndex } for highlight
+  pointerDownTime: 0, // timestamp for long-press detection
+  dragStarted: false // true once drag threshold met after long-press
 };
 
 const canvas = document.getElementById('canvas');
@@ -274,6 +280,10 @@ function resizeCanvas() {
 
 function setMode(m) {
   state.mode = m;
+  state.cursorPos = null;
+  state.hoveredPoint = null;
+  state.draggingPoint = null;
+  state.dragStarted = false;
   wrap.classList.toggle('panning', m === 'pan');
   btnScale.classList.toggle('active', m === 'scale');
   btnDraw.classList.toggle('active', m === 'draw');
@@ -284,7 +294,7 @@ function setMode(m) {
   const instrs = {
     idle: '選擇工具開始操作',
     scale: '在圖上點擊兩個已知距離的端點',
-    draw: '點擊圖上的角落繪製房間多邊形，點擊第一個點或按 Enter 閉合',
+    draw: '點擊放置頂點，拖曳已放置的頂點可調整位置，點擊第一個點或按 Enter 閉合',
     pan: '拖曳平移畫面，滾輪縮放'
   };
   instrEl.textContent = instrs[m] || '';
@@ -364,6 +374,37 @@ function polygonCentroid(pts) {
 }
 
 function dist(a, b) { return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2); }
+
+// --- Point hit detection ---
+const HIT_RADIUS = 15; // screen pixels
+function findNearPoint(sx, sy) {
+  // Check current polygon points first
+  for (let i = 0; i < state.currentPoly.length; i++) {
+    const s = imageToScreen(state.currentPoly[i].x, state.currentPoly[i].y);
+    if (dist({ x: sx, y: sy }, s) < HIT_RADIUS) {
+      return { type: 'current', roomIndex: -1, pointIndex: i };
+    }
+  }
+  // Check completed room points
+  for (let ri = 0; ri < state.rooms.length; ri++) {
+    const pts = state.rooms[ri].points;
+    for (let pi = 0; pi < pts.length; pi++) {
+      const s = imageToScreen(pts[pi].x, pts[pi].y);
+      if (dist({ x: sx, y: sy }, s) < HIT_RADIUS) {
+        return { type: 'room', roomIndex: ri, pointIndex: pi };
+      }
+    }
+  }
+  return null;
+}
+
+function recalcRoom(room) {
+  room.pixelArea = polygonArea(room.points);
+  if (state.scale) {
+    room.areaM2 = room.pixelArea / (state.scale.pixelsPerMeter ** 2);
+    room.areaPing = room.areaM2 * PING_PER_M2;
+  }
+}
 
 // --- Rendering ---
 function render() {
@@ -462,6 +503,73 @@ function render() {
       ctx.beginPath();
       ctx.arc(s.x, s.y, 10, 0, Math.PI * 2);
       ctx.stroke();
+    }
+  }
+
+  // Draw preview point and lines when in draw mode
+  if (state.mode === 'draw' && state.cursorPos && !state.draggingPoint) {
+    const cp = state.cursorPos;
+    const color = ROOM_COLORS[state.rooms.length % ROOM_COLORS.length];
+    // Preview line from last placed point to cursor
+    if (state.currentPoly.length > 0) {
+      const last = imageToScreen(state.currentPoly[state.currentPoly.length - 1].x, state.currentPoly[state.currentPoly.length - 1].y);
+      ctx.strokeStyle = hexToRgba(color, 0.4);
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(cp.x, cp.y); ctx.stroke();
+      ctx.setLineDash([]);
+      // Preview line from cursor to first point (shows potential close)
+      if (state.currentPoly.length >= 2) {
+        const first = imageToScreen(state.currentPoly[0].x, state.currentPoly[0].y);
+        ctx.strokeStyle = hexToRgba(color, 0.2);
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 5]);
+        ctx.beginPath(); ctx.moveTo(cp.x, cp.y); ctx.lineTo(first.x, first.y); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+    // Preview dot (pulsing via alpha animation)
+    const pulse = 0.4 + 0.3 * Math.sin(Date.now() / 200);
+    ctx.fillStyle = hexToRgba(color, pulse);
+    ctx.beginPath(); ctx.arc(cp.x, cp.y, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = hexToRgba('#ffffff', pulse);
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  // Highlight hovered point
+  if (state.hoveredPoint && !state.draggingPoint) {
+    let hp = null;
+    if (state.hoveredPoint.type === 'current' && state.hoveredPoint.pointIndex < state.currentPoly.length) {
+      hp = imageToScreen(state.currentPoly[state.hoveredPoint.pointIndex].x, state.currentPoly[state.hoveredPoint.pointIndex].y);
+    } else if (state.hoveredPoint.type === 'room' && state.hoveredPoint.roomIndex < state.rooms.length) {
+      const rp = state.rooms[state.hoveredPoint.roomIndex].points[state.hoveredPoint.pointIndex];
+      if (rp) hp = imageToScreen(rp.x, rp.y);
+    }
+    if (hp) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(hp.x, hp.y, 10, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.2)';
+      ctx.beginPath(); ctx.arc(hp.x, hp.y, 10, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  // Highlight dragging point
+  if (state.draggingPoint) {
+    let dp = null;
+    if (state.draggingPoint.type === 'current' && state.draggingPoint.pointIndex < state.currentPoly.length) {
+      dp = imageToScreen(state.currentPoly[state.draggingPoint.pointIndex].x, state.currentPoly[state.draggingPoint.pointIndex].y);
+    } else if (state.draggingPoint.type === 'room' && state.draggingPoint.roomIndex < state.rooms.length) {
+      const rp = state.rooms[state.draggingPoint.roomIndex].points[state.draggingPoint.pointIndex];
+      if (rp) dp = imageToScreen(rp.x, rp.y);
+    }
+    if (dp) {
+      ctx.strokeStyle = '#fcd34d';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(dp.x, dp.y, 12, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = 'rgba(252,211,77,0.3)';
+      ctx.beginPath(); ctx.arc(dp.x, dp.y, 12, 0, Math.PI * 2); ctx.fill();
     }
   }
 }
@@ -697,6 +805,8 @@ let mouseDownPos = null;
 let hasMoved = false;
 let lastTouchTime = 0; // Prevent duplicate mouse events after touch
 
+let longPressTimer = null;
+
 function onPointerDown(e) {
   // Skip mouse events that fire after touch events (prevents double points)
   if (!e.touches && Date.now() - lastTouchTime < 500) return;
@@ -712,9 +822,37 @@ function onPointerDown(e) {
   mouseDown = true;
   mouseDownPos = pos;
   hasMoved = false;
+  state.pointerDownTime = Date.now();
+  state.dragStarted = false;
+
   if (state.mode === 'pan') {
     isPanning = true;
     panStart = { x: pos.x - state.offsetX, y: pos.y - state.offsetY };
+  } else if (state.mode === 'draw') {
+    // Check if pointer is near an existing point (for drag)
+    const nearPt = findNearPoint(pos.x, pos.y);
+    if (nearPt) {
+      // Don't drag the first point if polygon is closeable -- clicking it should close
+      const isCloseClick = nearPt.type === 'current' && nearPt.pointIndex === 0 && state.currentPoly.length >= 3;
+      if (!isCloseClick) {
+        // For mouse: start drag immediately on existing points
+        // For touch: use long-press (300ms) to distinguish tap vs drag
+        if (!e.touches) {
+          state.draggingPoint = nearPt;
+          state.dragStarted = true;
+        } else {
+          // Touch: set up long-press timer
+          longPressTimer = setTimeout(() => {
+            const np = findNearPoint(pos.x, pos.y);
+            if (np && mouseDown && !hasMoved) {
+              state.draggingPoint = np;
+              state.dragStarted = true;
+              render();
+            }
+          }, 300);
+        }
+      }
+    }
   }
 }
 
@@ -735,11 +873,41 @@ function onPointerMove(e) {
     lastPinchDist = d;
     return;
   }
-  if (!mouseDown) return;
+
   const pos = getEventPos(e);
+
+  // Update cursor position for preview (even when mouse not down)
+  if (state.mode === 'draw' && img) {
+    state.cursorPos = pos;
+    // Detect hover over existing points
+    state.hoveredPoint = findNearPoint(pos.x, pos.y);
+    startAnimIfNeeded();
+  }
+
+  if (!mouseDown) {
+    return;
+  }
+
   if (Math.abs(pos.x - mouseDownPos.x) > 3 || Math.abs(pos.y - mouseDownPos.y) > 3) {
     hasMoved = true;
+    if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
   }
+
+  // Handle dragging a point
+  if (state.draggingPoint && state.dragStarted) {
+    const imgP = screenToImage(pos.x, pos.y);
+    // Clamp to image bounds
+    imgP.x = Math.max(0, Math.min(state.imageW, imgP.x));
+    imgP.y = Math.max(0, Math.min(state.imageH, imgP.y));
+    if (state.draggingPoint.type === 'current') {
+      state.currentPoly[state.draggingPoint.pointIndex] = imgP;
+    } else if (state.draggingPoint.type === 'room') {
+      state.rooms[state.draggingPoint.roomIndex].points[state.draggingPoint.pointIndex] = imgP;
+    }
+    render();
+    return;
+  }
+
   if (state.mode === 'pan' && isPanning) {
     state.offsetX = pos.x - panStart.x;
     state.offsetY = pos.y - panStart.y;
@@ -757,11 +925,32 @@ function onPointerMove(e) {
 }
 
 function onPointerUp(e) {
+  if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
   if (e.changedTouches && e.changedTouches.length > 0) {
     lastPinchDist = 0;
   }
   const wasPanning = isPanning;
+  const wasDragging = state.draggingPoint && state.dragStarted;
   isPanning = false;
+
+  // Finalize drag
+  if (wasDragging) {
+    if (state.draggingPoint.type === 'room') {
+      recalcRoom(state.rooms[state.draggingPoint.roomIndex]);
+      updateRoomList();
+      saveState();
+    }
+    state.draggingPoint = null;
+    state.dragStarted = false;
+    mouseDown = false;
+    mouseDownPos = null;
+    render();
+    return;
+  }
+
+  state.draggingPoint = null;
+  state.dragStarted = false;
+
   if (mouseDown && !hasMoved && !wasPanning && img) {
     const pos = mouseDownPos || getEventPos(e);
     handleClick(pos.x, pos.y);
@@ -773,6 +962,7 @@ function onPointerUp(e) {
 canvas.addEventListener('mousedown', onPointerDown);
 canvas.addEventListener('mousemove', onPointerMove);
 canvas.addEventListener('mouseup', onPointerUp);
+canvas.addEventListener('mouseleave', () => { state.cursorPos = null; state.hoveredPoint = null; render(); });
 canvas.addEventListener('touchstart', (e) => {
   // Only prevent default for multi-touch (pinch zoom) or when in pan mode
   if (e.touches.length >= 2 || state.mode === 'pan') e.preventDefault();
@@ -958,6 +1148,24 @@ function loadState() {
       updateRoomList();
     }
   } catch(e) {}
+}
+
+// --- Preview animation (only runs when needed) ---
+let animRunning = false;
+function animatePreview() {
+  if (state.mode === 'draw' && state.cursorPos && img) {
+    render();
+    animRunning = true;
+    requestAnimationFrame(animatePreview);
+  } else {
+    animRunning = false;
+  }
+}
+function startAnimIfNeeded() {
+  if (!animRunning && state.mode === 'draw' && state.cursorPos && img) {
+    animRunning = true;
+    requestAnimationFrame(animatePreview);
+  }
 }
 
 // --- Init ---
