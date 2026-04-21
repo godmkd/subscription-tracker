@@ -2,16 +2,17 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>坪數計算機</title>
 <style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; touch-action: manipulation; }
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft JhengHei', sans-serif;
   background: #0a0a1a;
   color: #e0e0e0;
   min-height: 100vh;
   overflow: hidden;
+  -webkit-text-size-adjust: 100%;
 }
 .app { display: flex; flex-direction: column; height: 100vh; }
 .header {
@@ -62,7 +63,7 @@ body {
 #dropzone .text { font-size: 16px; color: #a5b4fc; }
 #dropzone .sub { font-size: 13px; color: #6b7280; margin-top: 6px; }
 #fileInput { display: none; }
-canvas { position: absolute; top: 0; left: 0; }
+canvas { position: absolute; top: 0; left: 0; touch-action: none; }
 .sidebar {
   width: 280px; flex-shrink: 0; overflow-y: auto;
   background: rgba(255,255,255,0.02); border-left: 1px solid rgba(255,255,255,0.08);
@@ -113,7 +114,7 @@ canvas { position: absolute; top: 0; left: 0; }
 .modal label { font-size: 13px; color: #9ca3af; display: block; margin-bottom: 4px; }
 .modal input, .modal select {
   width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12);
-  background: rgba(255,255,255,0.06); color: #e0e0e0; font-size: 14px; margin-bottom: 12px;
+  background: rgba(255,255,255,0.06); color: #e0e0e0; font-size: 16px; margin-bottom: 12px;
 }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
 
@@ -1090,8 +1091,10 @@ roomConfirmBtn.addEventListener('click', confirmRoom);
 roomNameInput.addEventListener('keydown', e => { if (e.key === 'Enter') confirmRoom(); });
 
 function confirmRoom() {
+  const name = roomNameInput.value.trim();
+  roomNameInput.blur(); // Prevent iOS zoom on input focus
   roomModal.classList.add('hidden');
-  finalizeRoom(roomNameInput.value.trim());
+  finalizeRoom(name);
   // Reset touch/mouse state to prevent stuck interactions
   mouseDown = false;
   mouseDownPos = null;
