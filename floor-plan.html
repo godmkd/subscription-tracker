@@ -13,6 +13,9 @@ body {
   min-height: 100vh;
   overflow: hidden;
   -webkit-text-size-adjust: 100%;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .app { display: flex; flex-direction: column; height: 100vh; }
 .header {
@@ -63,7 +66,8 @@ body {
 #dropzone .text { font-size: 16px; color: #a5b4fc; }
 #dropzone .sub { font-size: 13px; color: #6b7280; margin-top: 6px; }
 #fileInput { display: none; }
-canvas { position: absolute; top: 0; left: 0; touch-action: none; }
+canvas { position: absolute; top: 0; left: 0; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.canvas-wrap { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 .sidebar {
   width: 280px; flex-shrink: 0; overflow-y: auto;
   background: rgba(255,255,255,0.02); border-left: 1px solid rgba(255,255,255,0.08);
@@ -115,6 +119,7 @@ canvas { position: absolute; top: 0; left: 0; touch-action: none; }
 .modal input, .modal select {
   width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12);
   background: rgba(255,255,255,0.06); color: #e0e0e0; font-size: 16px; margin-bottom: 12px;
+  -webkit-user-select: text; user-select: text;
 }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
 
@@ -991,6 +996,8 @@ canvas.addEventListener('dblclick', (e) => {
   handleDblClick(e.clientX - rect.left, e.clientY - rect.top);
 });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
+wrap.addEventListener('contextmenu', e => e.preventDefault());
+document.addEventListener('contextmenu', e => { if (e.target.tagName !== 'INPUT') e.preventDefault(); });
 
 // --- Dropzone ---
 dropzone.addEventListener('click', () => fileInput.click());
