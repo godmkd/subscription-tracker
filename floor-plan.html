@@ -877,12 +877,15 @@ function onPointerMove(e) {
 
   const pos = getEventPos(e);
 
-  // Update cursor position for preview (even when mouse not down)
+  // Update cursor position for preview (always, including during touch drag)
   if (state.mode === 'draw' && img) {
     state.cursorPos = pos;
-    // Detect hover over existing points
     state.hoveredPoint = findNearPoint(pos.x, pos.y);
     startAnimIfNeeded();
+    // During touch draw (finger down, not dragging a point), render preview at finger position
+    if (mouseDown && !state.draggingPoint && !isPanning && e.touches) {
+      render();
+    }
   }
 
   if (!mouseDown) {
@@ -952,9 +955,10 @@ function onPointerUp(e) {
   state.draggingPoint = null;
   state.dragStarted = false;
 
-  if (mouseDown && !hasMoved && !wasPanning && img) {
-    const pos = mouseDownPos || getEventPos(e);
-    handleClick(pos.x, pos.y);
+  if (mouseDown && !wasPanning && img) {
+    // Use release position (not press position) so user can drag to adjust before confirming
+    const pos = getEventPos(e) || mouseDownPos;
+    if (pos) handleClick(pos.x, pos.y);
   }
   mouseDown = false;
   mouseDownPos = null;
