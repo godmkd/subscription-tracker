@@ -663,7 +663,13 @@ function getEventPos(e) {
   if (e.touches && e.touches.length > 0) {
     return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
   }
-  return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  if (e.changedTouches && e.changedTouches.length > 0) {
+    return { x: e.changedTouches[0].clientX - rect.left, y: e.changedTouches[0].clientY - rect.top };
+  }
+  if (e.clientX !== undefined) {
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+  return null;
 }
 
 function handleClick(sx, sy) {
@@ -956,8 +962,8 @@ function onPointerUp(e) {
   state.dragStarted = false;
 
   if (mouseDown && !wasPanning && img) {
-    // Use release position (not press position) so user can drag to adjust before confirming
-    const pos = getEventPos(e) || mouseDownPos;
+    // Use release position — fallback chain: touchend pos → last cursor pos → press pos
+    const pos = getEventPos(e) || state.cursorPos || mouseDownPos;
     if (pos) handleClick(pos.x, pos.y);
   }
   mouseDown = false;
