@@ -431,12 +431,13 @@ function render() {
   });
 
   // Draw scale points
-  if (state.scalePoints.length > 0 && state.mode === 'scale') {
+  if (state.mode === 'scale') {
     const color = '#fcd34d';
     state.scalePoints.forEach(p => {
       const s = imageToScreen(p.x, p.y);
       drawDot(s.x, s.y, 6, color);
     });
+    // Line between two placed points
     if (state.scalePoints.length === 2) {
       const a = imageToScreen(state.scalePoints[0].x, state.scalePoints[0].y);
       const b = imageToScreen(state.scalePoints[1].x, state.scalePoints[1].y);
@@ -445,7 +446,6 @@ function render() {
       ctx.setLineDash([6, 4]);
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
       ctx.setLineDash([]);
-      // show pixel distance
       const pd = dist(state.scalePoints[0], state.scalePoints[1]);
       const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
       ctx.fillStyle = '#fcd34d';
@@ -457,6 +457,24 @@ function render() {
       } else {
         ctx.fillText(Math.round(pd) + ' px', mx, my - 8);
       }
+    }
+    // Preview line from last placed point to cursor
+    if (state.scalePoints.length === 1 && state.cursorPos) {
+      const a = imageToScreen(state.scalePoints[0].x, state.scalePoints[0].y);
+      ctx.strokeStyle = 'rgba(252,211,77,0.5)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(state.cursorPos.x, state.cursorPos.y); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    // Preview cursor dot in scale mode
+    if (state.scalePoints.length < 2 && state.cursorPos) {
+      const pulse = Math.sin(Date.now() / 300) * 0.3 + 0.7;
+      ctx.fillStyle = `rgba(252,211,77,${pulse * 0.6})`;
+      ctx.beginPath(); ctx.arc(state.cursorPos.x, state.cursorPos.y, 8, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = `rgba(252,211,77,${pulse})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
     }
   }
 
@@ -685,13 +703,15 @@ function handleClick(sx, sy) {
   if (state.mode === 'scale') {
     if (state.scalePoints.length < 2) {
       state.scalePoints.push(imgP);
-      if (state.scalePoints.length === 2) {
-        // Show distance input modal
-        scaleModal.classList.remove('hidden');
-        scaleDistance.value = '';
-        scaleDistance.focus();
-      }
       render();
+      if (state.scalePoints.length === 2) {
+        // Both points placed — show distance input modal after a brief delay
+        setTimeout(() => {
+          scaleModal.classList.remove('hidden');
+          scaleDistance.value = '';
+          scaleDistance.focus();
+        }, 200);
+      }
     }
   } else if (state.mode === 'draw') {
     // Check if clicking near first point to close
@@ -888,12 +908,12 @@ function onPointerMove(e) {
 
   const pos = getEventPos(e);
 
-  // Update cursor position for preview (always, including during touch drag)
-  if (state.mode === 'draw' && img) {
+  // Update cursor position for preview (draw and scale modes)
+  if ((state.mode === 'draw' || state.mode === 'scale') && img) {
     state.cursorPos = pos;
-    state.hoveredPoint = findNearPoint(pos.x, pos.y);
+    if (state.mode === 'draw') state.hoveredPoint = findNearPoint(pos.x, pos.y);
     startAnimIfNeeded();
-    // During touch draw (finger down, not dragging a point), render preview at finger position
+    // During touch (finger down), render preview at finger position
     if (mouseDown && !state.draggingPoint && !isPanning && e.touches) {
       render();
     }
