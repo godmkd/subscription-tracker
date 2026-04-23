@@ -146,7 +146,8 @@ canvas { position: absolute; top: 0; left: 0; touch-action: none; -webkit-touch-
     <button class="btn" id="btnScale" disabled title="設定比例尺">📏 比例尺</button>
     <button class="btn primary" id="btnDraw" disabled title="繪製房間">✏️ 繪製</button>
     <button class="btn" id="btnPan" disabled title="平移模式">🖐️ 平移</button>
-    <button class="btn" id="btnUndo" disabled title="復原上一點">↩ 復原</button>
+    <button class="btn" id="btnUndo" disabled title="復原 (Ctrl+Z)">↩ 復原</button>
+    <button class="btn" id="btnRedo" disabled title="重做 (Ctrl+Shift+Z)">↪ 重做</button>
     <button class="btn danger" id="btnClearAll" disabled>🗑️ 清除全部</button>
     <button class="btn" id="btnExport" disabled title="輸出圖片">📷 輸出圖片</button>
     <span style="flex:1"></span>
@@ -257,6 +258,7 @@ const btnScale = document.getElementById('btnScale');
 const btnDraw = document.getElementById('btnDraw');
 const btnPan = document.getElementById('btnPan');
 const btnUndo = document.getElementById('btnUndo');
+const btnRedo = document.getElementById('btnRedo');
 const btnClearAll = document.getElementById('btnClearAll');
 const btnExport = document.getElementById('btnExport');
 const btnRoomList = document.getElementById('btnRoomList');
@@ -277,6 +279,63 @@ let isPanning = false;
 let panStart = { x: 0, y: 0 };
 let lastPinchDist = 0;
 let pendingPolyPoints = null;
+
+// --- Undo/Redo system ---
+const MAX_UNDO = 50;
+let undoStack = [];
+let redoStack = [];
+
+function captureSnapshot() {
+  return {
+    rooms: JSON.parse(JSON.stringify(state.rooms)),
+    currentPoly: JSON.parse(JSON.stringify(state.currentPoly)),
+    scalePoints: JSON.parse(JSON.stringify(state.scalePoints)),
+    scale: state.scale ? JSON.parse(JSON.stringify(state.scale)) : null,
+    selectedRoom: state.selectedRoom
+  };
+}
+
+function applySnapshot(snap) {
+  state.rooms = JSON.parse(JSON.stringify(snap.rooms));
+  state.currentPoly = JSON.parse(JSON.stringify(snap.currentPoly));
+  state.scalePoints = JSON.parse(JSON.stringify(snap.scalePoints));
+  state.scale = snap.scale ? JSON.parse(JSON.stringify(snap.scale)) : null;
+  state.selectedRoom = snap.selectedRoom;
+}
+
+function pushUndo() {
+  undoStack.push(captureSnapshot());
+  if (undoStack.length > MAX_UNDO) undoStack.shift();
+  redoStack = [];
+  updateUndoRedoButtons();
+}
+
+function undo() {
+  if (undoStack.length === 0) return;
+  redoStack.push(captureSnapshot());
+  applySnapshot(undoStack.pop());
+  updateUndoRedoButtons();
+  recalcAreas();
+  updateRoomList();
+  saveState();
+  render();
+}
+
+function redo() {
+  if (redoStack.length === 0) return;
+  undoStack.push(captureSnapshot());
+  applySnapshot(redoStack.pop());
+  updateUndoRedoButtons();
+  recalcAreas();
+  updateRoomList();
+  saveState();
+  render();
+}
+
+function updateUndoRedoButtons() {
+  btnUndo.disabled = undoStack.length === 0;
+  btnRedo.disabled = redoStack.length === 0;
+}
 
 function resizeCanvas() {
   const r = window.devicePixelRatio || 1;
@@ -308,7 +367,7 @@ function setMode(m) {
     pan: '拖曳平移畫面，滾輪縮放'
   };
   instrEl.textContent = instrs[m] || '';
-  btnUndo.disabled = !(m === 'draw' && state.currentPoly.length > 0);
+  updateUndoRedoButtons();
 }
 
 // --- Image loading ---
@@ -868,6 +927,7 @@ function handleClick(sx, sy) {
 
   if (state.mode === 'scale') {
     if (state.scalePoints.length < 2) {
+      pushUndo();
       state.scalePoints.push(imgP);
       render();
       if (state.scalePoints.length === 2) {
@@ -888,8 +948,8 @@ function handleClick(sx, sy) {
         return;
       }
     }
+    pushUndo();
     state.currentPoly.push(imgP);
-    btnUndo.disabled = false;
     render();
   }
 }
@@ -905,9 +965,9 @@ function handleDblClick(sx, sy) {
 
 function closePoly() {
   if (state.currentPoly.length < 3) return;
+  pushUndo();
   pendingPolyPoints = [...state.currentPoly];
   state.currentPoly = [];
-  btnUndo.disabled = true;
   // Show room name modal
   roomModal.classList.remove('hidden');
   roomNameInput.value = '';
@@ -959,6 +1019,7 @@ function updateRoomList() {
     `;
     div.addEventListener('click', (e) => {
       if (e.target.closest('.room-delete')) {
+        pushUndo();
         state.rooms.splice(i, 1);
         if (state.selectedRoom >= state.rooms.length) state.selectedRoom = -1;
         updateRoomList();
@@ -1043,6 +1104,7 @@ function onPointerDown(e) {
         // For mouse: start drag immediately on existing points
         // For touch: use long-press (300ms) to distinguish tap vs drag
         if (!e.touches) {
+          pushUndo();
           state.draggingPoint = nearPt;
           state.dragStarted = true;
         } else {
@@ -1050,6 +1112,7 @@ function onPointerDown(e) {
           longPressTimer = setTimeout(() => {
             const np = findNearPoint(pos.x, pos.y);
             if (np && mouseDown && !hasMoved) {
+              pushUndo();
               state.draggingPoint = np;
               state.dragStarted = true;
               render();
@@ -1152,8 +1215,8 @@ function onPointerUp(e) {
     if (state.draggingPoint.type === 'room') {
       recalcRoom(state.rooms[state.draggingPoint.roomIndex]);
       updateRoomList();
-      saveState();
     }
+    saveState();
     state.draggingPoint = null;
     state.dragStarted = false;
     mouseDown = false;
@@ -1236,19 +1299,11 @@ btnDraw.addEventListener('click', () => {
   setMode('draw');
 });
 btnPan.addEventListener('click', () => setMode('pan'));
-btnUndo.addEventListener('click', () => {
-  if (state.mode === 'draw' && state.currentPoly.length > 0) {
-    state.currentPoly.pop();
-    btnUndo.disabled = state.currentPoly.length === 0;
-    render();
-  }
-  if (state.mode === 'scale' && state.scalePoints.length > 0) {
-    state.scalePoints.pop();
-    render();
-  }
-});
+btnUndo.addEventListener('click', () => undo());
+btnRedo.addEventListener('click', () => redo());
 btnClearAll.addEventListener('click', () => {
   if (!confirm('確定要清除所有資料？')) return;
+  undoStack = []; redoStack = [];
   state.scale = null; state.scalePoints = []; state.rooms = [];
   state.currentPoly = []; state.selectedRoom = -1;
   state.image = null; img = null;
@@ -1284,6 +1339,7 @@ scaleDistance.addEventListener('keydown', e => { if (e.key === 'Enter') confirmS
 function confirmScale() {
   const val = parseFloat(scaleDistance.value);
   if (!val || val <= 0) { scaleDistance.focus(); return; }
+  pushUndo();
   const unit = scaleUnit.value;
   const meters = unit === 'cm' ? val / 100 : val;
   const pixDist = dist(state.scalePoints[0], state.scalePoints[1]);
@@ -1299,6 +1355,11 @@ function confirmScale() {
 // --- Room name modal ---
 roomCancelBtn.addEventListener('click', () => {
   roomModal.classList.add('hidden');
+  // Restore the state from before closePoly was called
+  if (undoStack.length > 0) {
+    applySnapshot(undoStack.pop());
+    updateUndoRedoButtons();
+  }
   pendingPolyPoints = null;
   mouseDown = false; mouseDownPos = null; hasMoved = false; isPanning = false;
   render();
@@ -1323,8 +1384,8 @@ document.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
   if (e.key === 'Escape') {
     if (state.currentPoly.length > 0) {
+      pushUndo();
       state.currentPoly = [];
-      btnUndo.disabled = true;
       render();
     }
   }
@@ -1333,7 +1394,11 @@ document.addEventListener('keydown', e => {
   }
   if ((e.key === 'z' || e.key === 'Z') && (e.ctrlKey || e.metaKey)) {
     e.preventDefault();
-    btnUndo.click();
+    if (e.shiftKey) {
+      redo();
+    } else {
+      undo();
+    }
   }
 });
 
