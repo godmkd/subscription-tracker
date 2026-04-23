@@ -148,6 +148,7 @@ canvas { position: absolute; top: 0; left: 0; touch-action: none; -webkit-touch-
     <button class="btn" id="btnPan" disabled title="平移模式">🖐️ 平移</button>
     <button class="btn" id="btnUndo" disabled title="復原上一點">↩ 復原</button>
     <button class="btn danger" id="btnClearAll" disabled>🗑️ 清除全部</button>
+    <button class="btn" id="btnExport" disabled title="輸出圖片">📷 輸出圖片</button>
     <span style="flex:1"></span>
     <button class="btn" id="btnRoomList">📋 房間列表</button>
   </div>
@@ -257,6 +258,7 @@ const btnDraw = document.getElementById('btnDraw');
 const btnPan = document.getElementById('btnPan');
 const btnUndo = document.getElementById('btnUndo');
 const btnClearAll = document.getElementById('btnClearAll');
+const btnExport = document.getElementById('btnExport');
 const btnRoomList = document.getElementById('btnRoomList');
 
 const scaleModal = document.getElementById('scaleModal');
@@ -329,6 +331,7 @@ function loadImage(file) {
       btnDraw.disabled = false;
       btnPan.disabled = false;
       btnClearAll.disabled = false;
+      btnExport.disabled = false;
       setMode('scale');
       instrEl.textContent = '請先設定比例尺：點擊圖上兩個已知距離的端點';
       saveState();
@@ -349,6 +352,7 @@ function loadImageFromDataURL(dataURL) {
     btnDraw.disabled = false;
     btnPan.disabled = false;
     btnClearAll.disabled = false;
+    btnExport.disabled = false;
     if (!state.scale) setMode('scale');
     else setMode('draw');
     render();
@@ -1250,7 +1254,7 @@ btnClearAll.addEventListener('click', () => {
   state.image = null; img = null;
   state.offsetX = 0; state.offsetY = 0; state.zoom = 1;
   dropzone.classList.remove('hidden');
-  btnScale.disabled = true; btnDraw.disabled = true; btnPan.disabled = true; btnClearAll.disabled = true;
+  btnScale.disabled = true; btnDraw.disabled = true; btnPan.disabled = true; btnClearAll.disabled = true; btnExport.disabled = true;
   setMode('idle');
   instrEl.textContent = '拖曳或點擊上傳平面圖開始使用';
   updateRoomList();
@@ -1332,6 +1336,122 @@ document.addEventListener('keydown', e => {
     btnUndo.click();
   }
 });
+
+// --- Export image ---
+btnExport.addEventListener('click', exportImage);
+
+function exportImage() {
+  if (!img) return;
+  // Create a high-res export canvas at original image size
+  const expCanvas = document.createElement('canvas');
+  const pad = 60; // padding for room list at bottom
+  const roomCount = state.rooms.length;
+  const listH = roomCount > 0 ? 40 + roomCount * 24 + 30 : 0;
+  expCanvas.width = state.imageW;
+  expCanvas.height = state.imageH + listH;
+  const ec = expCanvas.getContext('2d');
+
+  // Draw background
+  ec.fillStyle = '#0a0a1a';
+  ec.fillRect(0, 0, expCanvas.width, expCanvas.height);
+
+  // Draw image
+  ec.drawImage(img, 0, 0);
+
+  // Draw rooms
+  state.rooms.forEach((room, ri) => {
+    const color = ROOM_COLORS[ri % ROOM_COLORS.length];
+    const pts = room.points;
+    if (pts.length < 3) return;
+
+    // Fill
+    ec.fillStyle = hexToRgba(color, 0.25);
+    ec.beginPath();
+    pts.forEach((p, i) => i === 0 ? ec.moveTo(p.x, p.y) : ec.lineTo(p.x, p.y));
+    ec.closePath(); ec.fill();
+
+    // Stroke
+    ec.strokeStyle = color;
+    ec.lineWidth = 3;
+    ec.beginPath();
+    pts.forEach((p, i) => i === 0 ? ec.moveTo(p.x, p.y) : ec.lineTo(p.x, p.y));
+    ec.closePath(); ec.stroke();
+
+    // Dots
+    pts.forEach(p => {
+      ec.fillStyle = color;
+      ec.beginPath(); ec.arc(p.x, p.y, 5, 0, Math.PI * 2); ec.fill();
+      ec.strokeStyle = '#fff'; ec.lineWidth = 1.5; ec.stroke();
+    });
+
+    // Edge distances
+    if (state.scale) {
+      ec.font = 'bold 14px sans-serif';
+      ec.textAlign = 'center';
+      for (let i = 0; i < pts.length; i++) {
+        const j = (i + 1) % pts.length;
+        const d = dist(pts[i], pts[j]) / state.scale.pixelsPerMeter;
+        const mx = (pts[i].x + pts[j].x) / 2, my = (pts[i].y + pts[j].y) / 2;
+        const text = d.toFixed(2) + 'm';
+        const tw = ec.measureText(text).width;
+        ec.fillStyle = 'rgba(0,0,0,0.75)';
+        ec.fillRect(mx - tw/2 - 4, my - 18, tw + 8, 20);
+        ec.fillStyle = color;
+        ec.fillText(text, mx, my - 2);
+      }
+    }
+
+    // Room label
+    const c = polygonCentroid(pts);
+    let label = room.name || '';
+    if (state.scale) label += '\n' + room.areaM2.toFixed(2) + ' m²\n' + room.areaPing.toFixed(2) + ' 坪';
+    const lines = label.split('\n');
+    const lh = 20;
+    let maxW = 0;
+    ec.font = 'bold 16px sans-serif';
+    lines.forEach(l => { maxW = Math.max(maxW, ec.measureText(l).width); });
+    ec.fillStyle = 'rgba(0,0,0,0.8)';
+    ec.fillRect(c.x - maxW/2 - 8, c.y - lines.length * lh/2 - 4, maxW + 16, lines.length * lh + 8);
+    ec.fillStyle = '#fff';
+    lines.forEach((l, i) => {
+      ec.font = i === 0 ? 'bold 16px sans-serif' : '14px sans-serif';
+      ec.textAlign = 'center';
+      ec.fillText(l, c.x, c.y - lines.length * lh/2 + i * lh + 16);
+    });
+  });
+
+  // Room list summary at bottom
+  if (roomCount > 0) {
+    const y0 = state.imageH + 16;
+    ec.fillStyle = '#ffd700';
+    ec.font = 'bold 18px sans-serif';
+    ec.textAlign = 'left';
+    ec.fillText('📋 房間面積總覽', 16, y0);
+
+    let totalM2 = 0, totalPing = 0;
+    state.rooms.forEach((room, i) => {
+      const color = ROOM_COLORS[i % ROOM_COLORS.length];
+      const ry = y0 + 24 + i * 24;
+      ec.fillStyle = color;
+      ec.fillRect(16, ry - 12, 12, 12);
+      ec.fillStyle = '#e0e0e0';
+      ec.font = '14px sans-serif';
+      ec.fillText(`${room.name}：${room.areaM2.toFixed(2)} m²（${room.areaPing.toFixed(2)} 坪）`, 36, ry);
+      totalM2 += room.areaM2;
+      totalPing += room.areaPing;
+    });
+    const ty = y0 + 24 + roomCount * 24;
+    ec.fillStyle = '#ffd700';
+    ec.font = 'bold 15px sans-serif';
+    ec.fillText(`合計：${totalM2.toFixed(2)} m²（${totalPing.toFixed(2)} 坪）`, 16, ty);
+  }
+
+  // Download
+  const link = document.createElement('a');
+  link.download = '坪數計算_' + new Date().toISOString().slice(0,10) + '.png';
+  link.href = expCanvas.toDataURL('image/png');
+  link.click();
+}
 
 // --- Prevent ALL double-tap zoom on iOS ---
 let lastTouchEnd = 0;
