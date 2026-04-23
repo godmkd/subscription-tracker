@@ -32,9 +32,10 @@ body {
 }
 .mode-badge.scale { background: rgba(251,191,36,0.2); border-color: rgba(251,191,36,0.4); color: #fcd34d; }
 .toolbar {
-  padding: 8px 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  padding: 6px 8px; display: flex; gap: 4px; flex-wrap: nowrap; align-items: center;
   background: #0a0a1a; border-bottom: 1px solid rgba(255,255,255,0.06);
   flex-shrink: 0; z-index: 10; position: sticky; top: 0;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
 }
 .btn {
   padding: 6px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12);
@@ -130,7 +131,8 @@ canvas { position: absolute; top: 0; left: 0; touch-action: none; -webkit-touch-
   .sidebar-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 49; display: none; }
   .sidebar-overlay.show { display: block; }
   .header h1 { font-size: 15px; }
-  .btn { font-size: 12px; padding: 5px 10px; }
+  .btn { font-size: 11px; padding: 4px 8px; white-space: nowrap; }
+  .toolbar { gap: 3px; padding: 4px 6px; }
 }
 </style>
 </head>
