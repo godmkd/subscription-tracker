@@ -233,7 +233,9 @@ let state = {
   draggingPoint: null, // { type: 'current'|'room', roomIndex, pointIndex }
   hoveredPoint: null, // { type, roomIndex, pointIndex } for highlight
   pointerDownTime: 0, // timestamp for long-press detection
-  dragStarted: false // true once drag threshold met after long-press
+  dragStarted: false, // true once drag threshold met after long-press
+  // magnifier for touch
+  magnifier: { active: false, screenX: 0, screenY: 0, imageX: 0, imageY: 0 }
 };
 
 const canvas = document.getElementById('canvas');
@@ -596,6 +598,166 @@ function render() {
       ctx.beginPath(); ctx.arc(dp.x, dp.y, 12, 0, Math.PI * 2); ctx.fill();
     }
   }
+
+  // Draw magnifier for touch interaction
+  if (state.magnifier.active && img) {
+    drawMagnifier();
+  }
+}
+
+function drawMagnifier() {
+  const mag = state.magnifier;
+  const RADIUS = 60; // 120px diameter
+  const ZOOM = 2.5;
+  const OFFSET_Y = 100; // pixels above touch point
+
+  // Determine magnifier center position (above finger, or below if near top)
+  let magCenterX = mag.screenX;
+  let magCenterY = mag.screenY - OFFSET_Y;
+  if (magCenterY - RADIUS < 0) {
+    // Too close to top edge, show below finger instead
+    magCenterY = mag.screenY + OFFSET_Y;
+  }
+
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+
+  ctx.save();
+
+  // Draw the magnifier circle with clipping
+  ctx.beginPath();
+  ctx.arc(magCenterX, magCenterY, RADIUS, 0, Math.PI * 2);
+  ctx.clip();
+
+  // Fill with dark background first (for areas outside image)
+  ctx.fillStyle = '#111';
+  ctx.fillRect(magCenterX - RADIUS, magCenterY - RADIUS, RADIUS * 2, RADIUS * 2);
+
+  // Calculate source region in screen coords centered on the touch point
+  // We want to show a region of size (RADIUS*2/ZOOM) around the touch point, magnified to fill the circle
+  const srcSize = RADIUS * 2 / ZOOM; // screen pixels to capture around touch
+
+  // Draw the image portion magnified
+  // Map from image coords: the touch point is at (mag.imageX, mag.imageY) in image space
+  // In the magnifier, we want to render the scene around the touch point at ZOOM magnification
+  // We re-draw the image with adjusted transform so the touch point maps to magCenter
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(magCenterX, magCenterY, RADIUS, 0, Math.PI * 2);
+  ctx.clip();
+
+  // Set up transform: translate so that imageToScreen(mag.imageX, mag.imageY) = (magCenterX, magCenterY) but at ZOOM * state.zoom
+  const magZoom = state.zoom * ZOOM;
+  const magOffsetX = magCenterX - mag.imageX * magZoom;
+  const magOffsetY = magCenterY - mag.imageY * magZoom;
+
+  // Draw the floor plan image
+  ctx.translate(magOffsetX, magOffsetY);
+  ctx.scale(magZoom, magZoom);
+  ctx.drawImage(img, 0, 0);
+  ctx.restore();
+
+  // Re-draw room polygons and points inside the magnifier with magnified transform
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(magCenterX, magCenterY, RADIUS, 0, Math.PI * 2);
+  ctx.clip();
+
+  // Helper: convert image coords to magnifier screen coords
+  function magImgToScreen(ix, iy) {
+    return { x: ix * magZoom + magOffsetX, y: iy * magZoom + magOffsetY };
+  }
+
+  // Draw completed rooms in magnifier
+  state.rooms.forEach((room, ri) => {
+    if (room.points.length < 3) return;
+    const color = ROOM_COLORS[ri % ROOM_COLORS.length];
+    const screenPts = room.points.map(p => magImgToScreen(p.x, p.y));
+    // Fill
+    ctx.fillStyle = hexToRgba(color, ri === state.selectedRoom ? 0.35 : 0.18);
+    ctx.beginPath();
+    screenPts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+    ctx.closePath(); ctx.fill();
+    // Stroke
+    ctx.strokeStyle = ri === state.selectedRoom ? '#fff' : color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    screenPts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+    ctx.closePath(); ctx.stroke();
+    // Dots
+    screenPts.forEach(p => {
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+    });
+  });
+
+  // Draw current polygon in magnifier
+  if (state.currentPoly.length > 0) {
+    const color = ROOM_COLORS[state.rooms.length % ROOM_COLORS.length];
+    const pts = state.currentPoly;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i < pts.length; i++) {
+      const s = magImgToScreen(pts[i].x, pts[i].y);
+      if (i === 0) ctx.moveTo(s.x, s.y);
+      else ctx.lineTo(s.x, s.y);
+    }
+    ctx.stroke();
+    pts.forEach((p, i) => {
+      const s = magImgToScreen(p.x, p.y);
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.arc(s.x, s.y, i === 0 ? 7 : 5, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+    });
+  }
+
+  // Draw scale points in magnifier
+  if (state.mode === 'scale') {
+    state.scalePoints.forEach(p => {
+      const s = magImgToScreen(p.x, p.y);
+      ctx.fillStyle = '#fcd34d';
+      ctx.beginPath(); ctx.arc(s.x, s.y, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+    });
+  }
+
+  ctx.restore();
+
+  ctx.restore();
+
+  // Draw magnifier border and crosshair (outside clip)
+  ctx.save();
+  // Shadow
+  ctx.shadowColor = 'rgba(0,0,0,0.5)';
+  ctx.shadowBlur = 10;
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(magCenterX, magCenterY, RADIUS, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Red crosshair in the center
+  const crossSize = 8;
+  ctx.strokeStyle = '#ef4444';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(magCenterX - crossSize, magCenterY);
+  ctx.lineTo(magCenterX + crossSize, magCenterY);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(magCenterX, magCenterY - crossSize);
+  ctx.lineTo(magCenterX, magCenterY + crossSize);
+  ctx.stroke();
+
+  // Small dot at crosshair center
+  ctx.fillStyle = '#ef4444';
+  ctx.beginPath();
+  ctx.arc(magCenterX, magCenterY, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
 }
 
 function drawDot(x, y, r, color) {
@@ -844,6 +1006,7 @@ function onPointerDown(e) {
   if (!e.touches && Date.now() - lastTouchTime < 500) return;
   if (e.touches) lastTouchTime = Date.now();
   if (e.touches && e.touches.length === 2) {
+    state.magnifier.active = false;
     lastPinchDist = dist(
       { x: e.touches[0].clientX, y: e.touches[0].clientY },
       { x: e.touches[1].clientX, y: e.touches[1].clientY }
@@ -856,6 +1019,12 @@ function onPointerDown(e) {
   hasMoved = false;
   state.pointerDownTime = Date.now();
   state.dragStarted = false;
+
+  // Activate magnifier on single-finger touch in scale/draw modes
+  if (e.touches && e.touches.length === 1 && (state.mode === 'scale' || state.mode === 'draw') && img) {
+    const imgP = screenToImage(pos.x, pos.y);
+    state.magnifier = { active: true, screenX: pos.x, screenY: pos.y, imageX: imgP.x, imageY: imgP.y };
+  }
 
   if (state.mode === 'pan') {
     isPanning = true;
@@ -913,8 +1082,12 @@ function onPointerMove(e) {
     state.cursorPos = pos;
     if (state.mode === 'draw') state.hoveredPoint = findNearPoint(pos.x, pos.y);
     startAnimIfNeeded();
-    // During touch (finger down), render preview at finger position
+    // During touch (finger down), update magnifier and render preview at finger position
     if (mouseDown && !state.draggingPoint && !isPanning && e.touches) {
+      if (e.touches.length === 1) {
+        const imgP = screenToImage(pos.x, pos.y);
+        state.magnifier = { active: true, screenX: pos.x, screenY: pos.y, imageX: imgP.x, imageY: imgP.y };
+      }
       render();
     }
   }
@@ -964,6 +1137,8 @@ function onPointerUp(e) {
   if (e.changedTouches && e.changedTouches.length > 0) {
     lastPinchDist = 0;
   }
+  // Deactivate magnifier
+  state.magnifier.active = false;
   const wasPanning = isPanning;
   const wasDragging = state.draggingPoint && state.dragStarted;
   isPanning = false;
