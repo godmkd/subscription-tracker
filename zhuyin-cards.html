@@ -59,12 +59,15 @@
   }
   .img-mask:hover { border-color: #6b7280; }
   .img-mask.has-image { cursor: move; border-style: solid; }
-  .img-mask .placeholder {
+  .img-mask .upload-btn {
     position: absolute; inset: 0;
     display: flex; align-items: center; justify-content: center;
-    color: #9ca3af; font-size: 11pt;
-    pointer-events: none;
+    color: #2563eb; font-size: 11pt; font-weight: 600;
+    cursor: pointer; background: #eff6ff;
+    border-radius: 4mm;
   }
+  .img-mask .upload-btn:hover { background: #dbeafe; }
+  .img-mask.has-image .upload-btn { display: none; }
   .img-mask img {
     position: absolute;
     top: 50%; left: 50%;
@@ -175,7 +178,10 @@ function buildCard(c) {
       <div class="symbol">${c.s}</div>
       <div class="img-mask" data-id="${c.n}">
         <img style="display:none">
-        <div class="placeholder">點擊上傳圖片</div>
+        <label class="upload-btn">
+          📷 點此上傳照片
+          <input type="file" accept="image/*" data-id="${c.n}" style="display:none">
+        </label>
         <div class="img-controls">
           <button title="向左旋轉" data-act="rot-l">↺</button>
           <button title="向右旋轉" data-act="rot-r">↻</button>
@@ -249,21 +255,15 @@ document.querySelectorAll('.img-mask').forEach(mask => {
   const id = parseInt(mask.dataset.id);
   const img = mask.querySelector('img');
 
-  // Click to upload (only when no image)
-  mask.addEventListener('click', e => {
-    if (e.target.closest('.img-controls')) return;
-    if (mask.classList.contains('has-image')) return;
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.addEventListener('change', () => {
-      const f = input.files[0];
-      if (!f) return;
-      const r = new FileReader();
-      r.onload = () => setImage(id, r.result);
-      r.readAsDataURL(f);
-    });
-    input.click();
+  // File input wired via <label>; just listen for change
+  const fileInput = mask.querySelector('input[type="file"]');
+  fileInput.addEventListener('change', () => {
+    const f = fileInput.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = () => setImage(id, r.result);
+    r.readAsDataURL(f);
+    fileInput.value = '';
   });
 
   // Control buttons
