@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<title>注音車車卡 37</title>
+<style>
+  @page { size: A4; margin: 8mm; }
+  body { font-family: "PingFang TC", "Heiti TC", "Microsoft JhengHei", sans-serif; margin: 0; }
+  .page {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 4mm;
+    width: 210mm;
+    height: 297mm;
+    box-sizing: border-box;
+    padding: 8mm;
+    page-break-after: always;
+  }
+  .card {
+    border: 2px dashed #444;
+    border-radius: 8mm;
+    padding: 6mm;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    text-align: center;
+    background: #fff;
+    box-sizing: border-box;
+  }
+  .num { font-size: 12pt; color: #999; align-self: flex-start; }
+  .symbol { font-size: 80pt; font-weight: 900; color: #2563eb; line-height: 1; margin-top: 4mm; }
+  .vehicle { font-size: 32pt; font-weight: 700; color: #f97316; margin-top: 4mm; }
+  .pinyin { font-size: 16pt; color: #555; margin-top: 2mm; letter-spacing: 4px; }
+  .pinyin .hi { color: #dc2626; font-weight: 700; }
+  .draw { font-size: 11pt; color: #aaa; margin-top: 6mm; }
+  @media screen {
+    body { background: #f5f5f5; padding: 20px; }
+    .page { box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin: 0 auto 20px; background: white; }
+  }
+</style>
+</head>
+<body>
+<script>
+const CARDS = [
+  // 聲母 21
+  {n:1,  s:'ㄅ', v:'巴士',          py:['ㄅ','ㄚ']},
+  {n:2,  s:'ㄆ', v:'跑車',          py:['ㄆ','ㄠˇ']},
+  {n:3,  s:'ㄇ', v:'摩托車',        py:['ㄇ','ㄛˊ']},
+  {n:4,  s:'ㄈ', v:'翻斗車',        py:['ㄈ','ㄢ']},
+  {n:5,  s:'ㄉ', v:'倒垃圾車',      py:['ㄉ','ㄠˋ']},
+  {n:6,  s:'ㄊ', v:'推土機',        py:['ㄊ','ㄨㄟ']},
+  {n:7,  s:'ㄋ', v:'牛車',          py:['ㄋ','ㄧㄡˊ']},
+  {n:8,  s:'ㄌ', v:'露營車',        py:['ㄌ','ㄨˋ']},
+  {n:9,  s:'ㄍ', v:'高鐵',          py:['ㄍ','ㄠ']},
+  {n:10, s:'ㄎ', v:'卡車',          py:['ㄎ','ㄚˇ']},
+  {n:11, s:'ㄏ', v:'火車',          py:['ㄏ','ㄨㄛˇ']},
+  {n:12, s:'ㄐ', v:'救護車',        py:['ㄐ','ㄧㄡˋ']},
+  {n:13, s:'ㄑ', v:'汽車',          py:['ㄑ','ㄧˋ']},
+  {n:14, s:'ㄒ', v:'消防車',        py:['ㄒ','ㄧㄠ']},
+  {n:15, s:'ㄓ', v:'戰車',          py:['ㄓ','ㄢˋ']},
+  {n:16, s:'ㄔ', v:'出租車',        py:['ㄔ','ㄨ']},
+  {n:17, s:'ㄕ', v:'水泥車',        py:['ㄕ','ㄨㄟˇ']},
+  {n:18, s:'ㄖ', v:'軟頂跑車',      py:['ㄖ','ㄨㄢˇ']},
+  {n:19, s:'ㄗ', v:'自行車',        py:['ㄗ','ˋ']},
+  {n:20, s:'ㄘ', v:'採石車',        py:['ㄘ','ㄞˇ']},
+  {n:21, s:'ㄙ', v:'賽車',          py:['ㄙ','ㄞˋ']},
+  // 介音 + 單韻母 13
+  {n:22, s:'ㄧ', v:'嬰兒車',        py:['ㄧ','ㄥ']},
+  {n:23, s:'ㄨ', v:'武裝車',        py:['ㄨ','ˇ']},
+  {n:24, s:'ㄩ', v:'雨刷車',        py:['ㄩ','ˇ']},
+  {n:25, s:'ㄚ', v:'鴨子車',        py:['ㄧ','ㄚ']},
+  {n:26, s:'ㄛ', v:'噢嚕車',        py:['ㄛ','—']},
+  {n:27, s:'ㄜ', v:'鵝車',          py:['ㄜ','ˊ']},
+  {n:28, s:'ㄝ', v:'椰子車',        py:['ㄧ','ㄝˊ']},
+  // 複韻母 + 鼻韻 + 兒 = 9
+  {n:29, s:'ㄞ', v:'愛心救護車',    py:['ㄞ','ˋ']},
+  {n:30, s:'ㄟ', v:'飛行車',        py:['ㄈ','ㄟ']},
+  {n:31, s:'ㄠ', v:'奧迪',          py:['ㄠ','ˋ']},
+  {n:32, s:'ㄡ', v:'油罐車',        py:['ㄡ','ˊ']},
+  {n:33, s:'ㄢ', v:'三輪車',        py:['ㄙ','ㄢ']},
+  {n:34, s:'ㄣ', v:'賓士',          py:['ㄅ','ㄣ']},
+  {n:35, s:'ㄤ', v:'黃色巴士',      py:['ㄏㄨ','ㄤˊ']},
+  {n:36, s:'ㄥ', v:'工程車',        py:['ㄍㄨ','ㄥ']},
+  {n:37, s:'ㄦ', v:'兒童車',        py:['ㄦ','ˊ']},
+];
+
+function buildCard(c){
+  return `
+    <div class="card">
+      <div class="num">#${c.n}</div>
+      <div class="symbol">${c.s}</div>
+      <div class="vehicle">${c.v}</div>
+      <div class="pinyin"><span class="hi">${c.py[0]}</span>${c.py[1]}</div>
+      <div class="draw">在這裡畫一台 ${c.v}</div>
+    </div>
+  `;
+}
+
+const root = document.body;
+for (let i = 0; i < CARDS.length; i += 4) {
+  const page = document.createElement('div');
+  page.className = 'page';
+  page.innerHTML = CARDS.slice(i, i + 4).map(buildCard).join('');
+  // pad to 4 cards per page
+  const padding = 4 - (CARDS.length - i < 4 ? CARDS.length - i : 4);
+  for (let j = 0; j < padding; j++) {
+    page.innerHTML += '<div class="card" style="border-color:transparent"></div>';
+  }
+  root.appendChild(page);
+}
+</script>
+</body>
+</html>
