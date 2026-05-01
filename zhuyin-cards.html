@@ -2,10 +2,25 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>注音車車卡 37</title>
 <style>
   @page { size: A4; margin: 8mm; }
   body { font-family: "PingFang TC", "Heiti TC", "Microsoft JhengHei", sans-serif; margin: 0; }
+
+  .toolbar {
+    position: sticky; top: 0; z-index: 1000;
+    background: #1f2937; color: #fff; padding: 10px 16px;
+    display: flex; gap: 12px; align-items: center; font-size: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+  .toolbar .hint { opacity: 0.7; }
+  .toolbar button {
+    background: #3b82f6; color: #fff; border: none; padding: 6px 12px;
+    border-radius: 6px; cursor: pointer; font-size: 13px;
+  }
+  .toolbar button.danger { background: #dc2626; }
+
   .page {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -20,31 +35,89 @@
   .card {
     border: 2px dashed #444;
     border-radius: 8mm;
-    padding: 6mm;
+    padding: 4mm;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: space-between;
     text-align: center;
     background: #fff;
     box-sizing: border-box;
+    position: relative;
   }
   .num { font-size: 12pt; color: #999; align-self: flex-start; }
-  .symbol { font-size: 80pt; font-weight: 900; color: #2563eb; line-height: 1; margin-top: 4mm; }
-  .vehicle { font-size: 32pt; font-weight: 700; color: #f97316; margin-top: 4mm; }
-  .pinyin { font-size: 16pt; color: #555; margin-top: 2mm; letter-spacing: 4px; }
+  .symbol { font-size: 56pt; font-weight: 900; color: #2563eb; line-height: 1; margin-top: 2mm; }
+
+  .img-mask {
+    width: 60mm; height: 50mm; margin: 3mm 0;
+    background: #f3f4f6;
+    border: 2px solid #d1d5db; border-radius: 4mm;
+    overflow: hidden;
+    position: relative;
+    cursor: pointer;
+    user-select: none;
+    touch-action: none;
+  }
+  .img-mask:hover { border-color: #6b7280; }
+  .img-mask.has-image { cursor: move; border-style: solid; }
+  .img-mask .placeholder {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: #9ca3af; font-size: 11pt;
+    pointer-events: none;
+  }
+  .img-mask img {
+    position: absolute;
+    top: 50%; left: 50%;
+    max-width: none;
+    transform-origin: 0 0;
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+  .img-controls {
+    position: absolute;
+    bottom: 2px; right: 2px;
+    display: none; gap: 2px;
+    z-index: 5;
+  }
+  .img-mask.has-image .img-controls { display: flex; }
+  .img-controls button {
+    background: rgba(0,0,0,0.6); color: #fff;
+    border: none; width: 22px; height: 22px;
+    border-radius: 4px; cursor: pointer; font-size: 12px;
+    line-height: 1; padding: 0;
+  }
+  .img-controls button:hover { background: rgba(0,0,0,0.85); }
+
+  .vehicle { font-size: 22pt; font-weight: 700; color: #f97316; margin-top: 2mm; }
+  .pinyin { font-size: 14pt; color: #555; margin-top: 1mm; letter-spacing: 4px; }
   .pinyin .hi { color: #dc2626; font-weight: 700; }
-  .draw { font-size: 11pt; color: #aaa; margin-top: 6mm; }
+
   @media screen {
-    body { background: #f5f5f5; padding: 20px; }
+    body { background: #f5f5f5; padding-bottom: 20px; }
     .page { box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin: 0 auto 20px; background: white; }
+  }
+  @media print {
+    .toolbar { display: none; }
+    body { background: white; padding: 0; }
+    .img-controls { display: none !important; }
+    .img-mask { border-color: transparent; background: transparent; }
+    .img-mask .placeholder { display: none; }
   }
 </style>
 </head>
 <body>
+
+<div class="toolbar">
+  <span>📷 點圖片框上傳照片，拖曳移動，滾輪/捏合縮放，左下旋轉。資料自動存本機。</span>
+  <button onclick="exportData()">匯出存檔</button>
+  <button onclick="document.getElementById('importFile').click()">匯入存檔</button>
+  <button class="danger" onclick="resetAll()">清空全部</button>
+  <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(this)">
+</div>
+
 <script>
 const CARDS = [
-  // 聲母 21
   {n:1,  s:'ㄅ', v:'巴士',          py:['ㄅ','ㄚ']},
   {n:2,  s:'ㄆ', v:'跑車',          py:['ㄆ','ㄠˇ']},
   {n:3,  s:'ㄇ', v:'摩托車',        py:['ㄇ','ㄛˊ']},
@@ -66,7 +139,6 @@ const CARDS = [
   {n:19, s:'ㄗ', v:'自行車',        py:['ㄗ','ˋ']},
   {n:20, s:'ㄘ', v:'採石車',        py:['ㄘ','ㄞˇ']},
   {n:21, s:'ㄙ', v:'賽車',          py:['ㄙ','ㄞˋ']},
-  // 介音 + 單韻母 13
   {n:22, s:'ㄧ', v:'嬰兒車',        py:['ㄧ','ㄥ']},
   {n:23, s:'ㄨ', v:'武裝車',        py:['ㄨ','ˇ']},
   {n:24, s:'ㄩ', v:'雨刷車',        py:['ㄩ','ˇ']},
@@ -74,7 +146,6 @@ const CARDS = [
   {n:26, s:'ㄛ', v:'噢嚕車',        py:['ㄛ','—']},
   {n:27, s:'ㄜ', v:'鵝車',          py:['ㄜ','ˊ']},
   {n:28, s:'ㄝ', v:'椰子車',        py:['ㄧ','ㄝˊ']},
-  // 複韻母 + 鼻韻 + 兒 = 9
   {n:29, s:'ㄞ', v:'愛心救護車',    py:['ㄞ','ˋ']},
   {n:30, s:'ㄟ', v:'飛行車',        py:['ㄈ','ㄟ']},
   {n:31, s:'ㄠ', v:'奧迪',          py:['ㄠ','ˋ']},
@@ -86,14 +157,34 @@ const CARDS = [
   {n:37, s:'ㄦ', v:'兒童車',        py:['ㄦ','ˊ']},
 ];
 
-function buildCard(c){
+const STORAGE_KEY = 'zhuyin_cards_v1';
+
+function loadState() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
+  catch { return {}; }
+}
+function saveState(state) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+const STATE = loadState();
+
+function buildCard(c) {
   return `
-    <div class="card">
+    <div class="card" data-id="${c.n}">
       <div class="num">#${c.n}</div>
       <div class="symbol">${c.s}</div>
+      <div class="img-mask" data-id="${c.n}">
+        <img style="display:none">
+        <div class="placeholder">點擊上傳圖片</div>
+        <div class="img-controls">
+          <button title="向左旋轉" data-act="rot-l">↺</button>
+          <button title="向右旋轉" data-act="rot-r">↻</button>
+          <button title="重設" data-act="reset">⟲</button>
+          <button title="移除" data-act="remove">✕</button>
+        </div>
+      </div>
       <div class="vehicle">${c.v}</div>
       <div class="pinyin"><span class="hi">${c.py[0]}</span>${c.py[1]}</div>
-      <div class="draw">在這裡畫一台 ${c.v}</div>
     </div>
   `;
 }
@@ -103,12 +194,199 @@ for (let i = 0; i < CARDS.length; i += 4) {
   const page = document.createElement('div');
   page.className = 'page';
   page.innerHTML = CARDS.slice(i, i + 4).map(buildCard).join('');
-  // pad to 4 cards per page
-  const padding = 4 - (CARDS.length - i < 4 ? CARDS.length - i : 4);
+  const padding = Math.max(0, 4 - (CARDS.length - i));
   for (let j = 0; j < padding; j++) {
     page.innerHTML += '<div class="card" style="border-color:transparent"></div>';
   }
   root.appendChild(page);
+}
+
+// ===== Image upload + transform =====
+function applyTransform(img, t) {
+  // Use translate(-50%,-50%) to center, then user transforms
+  img.style.transform = `translate(${t.x}px, ${t.y}px) translate(-50%, -50%) scale(${t.scale}) rotate(${t.rot}deg)`;
+}
+
+function loadImage(id) {
+  const data = STATE[id];
+  if (!data) return;
+  const mask = document.querySelector(`.img-mask[data-id="${id}"]`);
+  if (!mask) return;
+  const img = mask.querySelector('img');
+  img.src = data.src;
+  img.style.display = '';
+  mask.classList.add('has-image');
+  applyTransform(img, data);
+}
+
+function setImage(id, src) {
+  const t = { src, x: 0, y: 0, scale: 1, rot: 0 };
+  STATE[id] = t;
+  saveState(STATE);
+  loadImage(id);
+}
+
+function updateState(id, partial) {
+  if (!STATE[id]) return;
+  Object.assign(STATE[id], partial);
+  saveState(STATE);
+  const mask = document.querySelector(`.img-mask[data-id="${id}"]`);
+  applyTransform(mask.querySelector('img'), STATE[id]);
+}
+
+function removeImage(id) {
+  delete STATE[id];
+  saveState(STATE);
+  const mask = document.querySelector(`.img-mask[data-id="${id}"]`);
+  const img = mask.querySelector('img');
+  img.src = ''; img.style.display = 'none';
+  img.style.transform = '';
+  mask.classList.remove('has-image');
+}
+
+// Wire up each mask
+document.querySelectorAll('.img-mask').forEach(mask => {
+  const id = parseInt(mask.dataset.id);
+  const img = mask.querySelector('img');
+
+  // Click to upload (only when no image)
+  mask.addEventListener('click', e => {
+    if (e.target.closest('.img-controls')) return;
+    if (mask.classList.contains('has-image')) return;
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.addEventListener('change', () => {
+      const f = input.files[0];
+      if (!f) return;
+      const r = new FileReader();
+      r.onload = () => setImage(id, r.result);
+      r.readAsDataURL(f);
+    });
+    input.click();
+  });
+
+  // Control buttons
+  mask.querySelectorAll('.img-controls button').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const act = btn.dataset.act;
+      if (!STATE[id]) return;
+      if (act === 'rot-l') updateState(id, { rot: STATE[id].rot - 15 });
+      else if (act === 'rot-r') updateState(id, { rot: STATE[id].rot + 15 });
+      else if (act === 'reset') updateState(id, { x: 0, y: 0, scale: 1, rot: 0 });
+      else if (act === 'remove') removeImage(id);
+    });
+  });
+
+  // ----- Pointer drag (move) -----
+  let dragging = false;
+  let startX = 0, startY = 0, origX = 0, origY = 0;
+  const pointers = new Map();
+  let pinchStart = null;
+
+  mask.addEventListener('pointerdown', e => {
+    if (!mask.classList.contains('has-image')) return;
+    if (e.target.closest('.img-controls')) return;
+    mask.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (pointers.size === 1) {
+      dragging = true;
+      startX = e.clientX; startY = e.clientY;
+      origX = STATE[id].x; origY = STATE[id].y;
+    } else if (pointers.size === 2) {
+      // Pinch start
+      dragging = false;
+      const pts = [...pointers.values()];
+      const dx = pts[1].x - pts[0].x, dy = pts[1].y - pts[0].y;
+      pinchStart = {
+        dist: Math.hypot(dx, dy),
+        angle: Math.atan2(dy, dx) * 180 / Math.PI,
+        scale: STATE[id].scale,
+        rot: STATE[id].rot,
+      };
+    }
+  });
+
+  mask.addEventListener('pointermove', e => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (pointers.size === 1 && dragging) {
+      updateState(id, {
+        x: origX + (e.clientX - startX),
+        y: origY + (e.clientY - startY),
+      });
+    } else if (pointers.size === 2 && pinchStart) {
+      const pts = [...pointers.values()];
+      const dx = pts[1].x - pts[0].x, dy = pts[1].y - pts[0].y;
+      const dist = Math.hypot(dx, dy);
+      const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+      const newScale = Math.max(0.1, Math.min(10, pinchStart.scale * (dist / pinchStart.dist)));
+      const newRot = pinchStart.rot + (angle - pinchStart.angle);
+      updateState(id, { scale: newScale, rot: newRot });
+    }
+  });
+
+  function endPointer(e) {
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) pinchStart = null;
+    if (pointers.size === 0) dragging = false;
+  }
+  mask.addEventListener('pointerup', endPointer);
+  mask.addEventListener('pointercancel', endPointer);
+
+  // Wheel to zoom
+  mask.addEventListener('wheel', e => {
+    if (!mask.classList.contains('has-image')) return;
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.1 : 0.9;
+    updateState(id, { scale: Math.max(0.1, Math.min(10, STATE[id].scale * factor)) });
+  }, { passive: false });
+});
+
+// Restore saved images
+CARDS.forEach(c => loadImage(c.n));
+
+// ===== Export / Import / Reset =====
+function exportData() {
+  const blob = new Blob([JSON.stringify(STATE, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `zhuyin-cards-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+}
+function importData(input) {
+  const f = input.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const data = JSON.parse(r.result);
+      Object.assign(STATE, data);
+      saveState(STATE);
+      CARDS.forEach(c => {
+        const mask = document.querySelector(`.img-mask[data-id="${c.n}"]`);
+        const img = mask.querySelector('img');
+        img.src = ''; img.style.display = 'none'; mask.classList.remove('has-image');
+        loadImage(c.n);
+      });
+      alert('匯入完成');
+    } catch (e) { alert('匯入失敗：' + e.message); }
+  };
+  r.readAsText(f);
+  input.value = '';
+}
+function resetAll() {
+  if (!confirm('確定清空所有圖片？')) return;
+  for (const k of Object.keys(STATE)) delete STATE[k];
+  saveState(STATE);
+  document.querySelectorAll('.img-mask').forEach(mask => {
+    const img = mask.querySelector('img');
+    img.src = ''; img.style.display = 'none';
+    mask.classList.remove('has-image');
+  });
 }
 </script>
 </body>
