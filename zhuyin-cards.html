@@ -12,9 +12,8 @@
     position: sticky; top: 0; z-index: 1000;
     background: #1f2937; color: #fff; padding: 10px 16px;
     display: flex; gap: 12px; align-items: center; font-size: 14px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2); flex-wrap: wrap;
   }
-  .toolbar .hint { opacity: 0.7; }
   .toolbar button {
     background: #3b82f6; color: #fff; border: none; padding: 6px 12px;
     border-radius: 6px; cursor: pointer; font-size: 13px;
@@ -44,31 +43,18 @@
     box-sizing: border-box;
     position: relative;
   }
-  .num { font-size: 12pt; color: #999; align-self: flex-start; }
-  .symbol { font-size: 56pt; font-weight: 900; color: #2563eb; line-height: 1; margin-top: 2mm; }
+  .card.editing { z-index: 100; }
 
-  .img-mask {
-    width: 60mm; height: 50mm; margin: 3mm 0;
-    background: #f3f4f6;
-    border: 2px solid #d1d5db; border-radius: 4mm;
-    overflow: hidden;
+  .num { font-size: 12pt; color: #999; align-self: flex-start; }
+  .symbol { font-size: 56pt; font-weight: 900; color: #2563eb; line-height: 1; margin-top: 1mm; }
+
+  /* Image stage — wraps mask, allows ghost to overflow during edit */
+  .img-stage {
     position: relative;
-    cursor: pointer;
-    user-select: none;
-    touch-action: none;
+    width: 65mm; height: 52mm;
+    margin: 2mm 0 1mm;
   }
-  .img-mask:hover { border-color: #6b7280; }
-  .img-mask.has-image { cursor: move; border-style: solid; }
-  .img-mask .upload-btn {
-    position: absolute; inset: 0;
-    display: flex; align-items: center; justify-content: center;
-    color: #2563eb; font-size: 11pt; font-weight: 600;
-    cursor: pointer; background: #eff6ff;
-    border-radius: 4mm;
-  }
-  .img-mask .upload-btn:hover { background: #dbeafe; }
-  .img-mask.has-image .upload-btn { display: none; }
-  .img-mask img {
+  .img-stage .ghost {
     position: absolute;
     top: 50%; left: 50%;
     max-width: none;
@@ -76,23 +62,78 @@
     pointer-events: none;
     user-select: none;
     -webkit-user-drag: none;
+    opacity: 0;
+    transition: opacity 0.2s;
   }
-  .img-controls {
-    position: absolute;
-    bottom: 2px; right: 2px;
-    display: none; gap: 2px;
-    z-index: 5;
-  }
-  .img-mask.has-image .img-controls { display: flex; }
-  .img-controls button {
-    background: rgba(0,0,0,0.6); color: #fff;
-    border: none; width: 22px; height: 22px;
-    border-radius: 4px; cursor: pointer; font-size: 12px;
-    line-height: 1; padding: 0;
-  }
-  .img-controls button:hover { background: rgba(0,0,0,0.85); }
+  .card.editing .img-stage .ghost { opacity: 0.3; }
 
-  .vehicle { font-size: 22pt; font-weight: 700; color: #f97316; margin-top: 2mm; }
+  .img-mask {
+    position: absolute;
+    inset: 0;
+    background: #f3f4f6;
+    border: 2px solid #d1d5db; border-radius: 4mm;
+    overflow: hidden;
+  }
+  .card.editing .img-mask {
+    border: 3px solid #2563eb;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+  }
+  .img-mask img.main {
+    position: absolute;
+    top: 50%; left: 50%;
+    max-width: none;
+    transform-origin: 0 0;
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-drag: none;
+    display: none;
+  }
+  .img-mask.has-image img.main { display: block; }
+
+  .upload-btn {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: #2563eb; font-size: 11pt; font-weight: 600;
+    cursor: pointer; background: #eff6ff;
+    border-radius: 4mm;
+    z-index: 1;
+  }
+  .upload-btn:hover { background: #dbeafe; }
+  .img-mask.has-image .upload-btn { display: none; }
+
+  /* Image controls — sit OUTSIDE the mask */
+  .img-controls {
+    display: flex; gap: 4px; margin-top: 2mm;
+    flex-wrap: wrap; justify-content: center;
+  }
+  .img-controls button {
+    background: #f3f4f6; border: 1px solid #d1d5db;
+    padding: 3px 8px; font-size: 11pt; border-radius: 4px; cursor: pointer;
+    color: #1f2937;
+  }
+  .img-controls button:hover { background: #e5e7eb; }
+  .img-controls button.primary { background: #2563eb; color: white; border-color: #2563eb; }
+  .img-controls button.danger { color: #dc2626; }
+
+  /* Edit panel — shown only when editing */
+  .edit-panel {
+    display: none;
+    margin-top: 2mm;
+    padding: 4px 6px;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb; border-radius: 4px;
+    width: 100%; box-sizing: border-box;
+  }
+  .card.editing .edit-panel { display: block; }
+  .slider-row {
+    display: flex; align-items: center; gap: 6px; margin: 2px 0;
+    font-size: 10pt;
+  }
+  .slider-row label { width: 32px; color: #666; }
+  .slider-row input[type=range] { flex: 1; min-width: 0; }
+  .slider-row .value { width: 38px; text-align: right; color: #444; font-variant-numeric: tabular-nums; }
+
+  .vehicle { font-size: 22pt; font-weight: 700; color: #f97316; margin-top: auto; }
   .pinyin { font-size: 14pt; color: #555; margin-top: 1mm; letter-spacing: 4px; }
   .pinyin .hi { color: #dc2626; font-weight: 700; }
 
@@ -103,16 +144,18 @@
   @media print {
     .toolbar { display: none; }
     body { background: white; padding: 0; }
-    .img-controls { display: none !important; }
+    .img-controls, .edit-panel { display: none !important; }
     .img-mask { border-color: transparent; background: transparent; }
-    .img-mask .placeholder { display: none; }
+    .upload-btn { display: none !important; }
+    .card.editing { z-index: auto; }
+    .card.editing .ghost { opacity: 0 !important; }
   }
 </style>
 </head>
 <body>
 
 <div class="toolbar">
-  <span>📷 點圖片框上傳照片，拖曳移動，滾輪/捏合縮放，左下旋轉。資料自動存本機。</span>
+  <span>📷 點圖框上傳 → 點 ✏️ 編輯。編輯時圖片會超出遮罩半透明顯示，方便對位。</span>
   <button onclick="exportData()">匯出存檔</button>
   <button onclick="document.getElementById('importFile').click()">匯入存檔</button>
   <button class="danger" onclick="resetAll()">清空全部</button>
@@ -161,14 +204,8 @@ const CARDS = [
 ];
 
 const STORAGE_KEY = 'zhuyin_cards_v1';
-
-function loadState() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
-  catch { return {}; }
-}
-function saveState(state) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
+const loadState = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; } };
+const saveState = s => localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
 const STATE = loadState();
 
 function buildCard(c) {
@@ -176,17 +213,34 @@ function buildCard(c) {
     <div class="card" data-id="${c.n}">
       <div class="num">#${c.n}</div>
       <div class="symbol">${c.s}</div>
-      <div class="img-mask" data-id="${c.n}">
-        <img style="display:none">
-        <label class="upload-btn">
-          📷 點此上傳照片
-          <input type="file" accept="image/*" data-id="${c.n}" style="display:none">
-        </label>
-        <div class="img-controls">
-          <button title="向左旋轉" data-act="rot-l">↺</button>
-          <button title="向右旋轉" data-act="rot-r">↻</button>
-          <button title="重設" data-act="reset">⟲</button>
-          <button title="移除" data-act="remove">✕</button>
+      <div class="img-stage">
+        <img class="ghost" alt="">
+        <div class="img-mask">
+          <img class="main" alt="">
+          <label class="upload-btn">
+            📷 點此上傳照片
+            <input type="file" accept="image/*" data-id="${c.n}" style="display:none">
+          </label>
+        </div>
+      </div>
+      <div class="img-controls" data-controls="${c.n}">
+        <button data-act="edit" class="primary" style="display:none">✏️ 編輯</button>
+      </div>
+      <div class="edit-panel" data-edit="${c.n}">
+        <div class="slider-row">
+          <label>旋轉</label>
+          <input type="range" min="-180" max="180" step="1" data-slider="rot" value="0">
+          <span class="value" data-vshow="rot">0°</span>
+        </div>
+        <div class="slider-row">
+          <label>縮放</label>
+          <input type="range" min="10" max="500" step="1" data-slider="scale" value="100">
+          <span class="value" data-vshow="scale">100%</span>
+        </div>
+        <div class="img-controls" style="margin-top:3px">
+          <button data-act="reset">⟲ 重設</button>
+          <button data-act="remove" class="danger">✕ 移除</button>
+          <button data-act="done" class="primary">✓ 完成</button>
         </div>
       </div>
       <div class="vehicle">${c.v}</div>
@@ -207,27 +261,53 @@ for (let i = 0; i < CARDS.length; i += 4) {
   root.appendChild(page);
 }
 
-// ===== Image upload + transform =====
-function applyTransform(img, t) {
-  // Use translate(-50%,-50%) to center, then user transforms
-  img.style.transform = `translate(${t.x}px, ${t.y}px) translate(-50%, -50%) scale(${t.scale}) rotate(${t.rot}deg)`;
+// ===== Transform helpers =====
+function applyTransform(card, t) {
+  const tr = `translate(${t.x}px, ${t.y}px) translate(-50%, -50%) scale(${t.scale}) rotate(${t.rot}deg)`;
+  const main = card.querySelector('.img-mask img.main');
+  const ghost = card.querySelector('.img-stage .ghost');
+  if (main) main.style.transform = tr;
+  if (ghost) ghost.style.transform = tr;
+}
+
+function syncSliders(card, t) {
+  const rotEl = card.querySelector('input[data-slider="rot"]');
+  const scaleEl = card.querySelector('input[data-slider="scale"]');
+  if (rotEl) {
+    rotEl.value = ((t.rot % 360) + 540) % 360 - 180; // wrap to [-180, 180]
+    card.querySelector('[data-vshow="rot"]').textContent = `${Math.round(rotEl.value)}°`;
+  }
+  if (scaleEl) {
+    scaleEl.value = Math.round(t.scale * 100);
+    card.querySelector('[data-vshow="scale"]').textContent = `${scaleEl.value}%`;
+  }
 }
 
 function loadImage(id) {
+  const card = document.querySelector(`.card[data-id="${id}"]`);
+  if (!card) return;
   const data = STATE[id];
-  if (!data) return;
-  const mask = document.querySelector(`.img-mask[data-id="${id}"]`);
-  if (!mask) return;
-  const img = mask.querySelector('img');
-  img.src = data.src;
-  img.style.display = '';
-  mask.classList.add('has-image');
-  applyTransform(img, data);
+  const mask = card.querySelector('.img-mask');
+  const main = card.querySelector('img.main');
+  const ghost = card.querySelector('img.ghost');
+  const controls = card.querySelector('[data-controls]');
+  if (data) {
+    main.src = data.src;
+    ghost.src = data.src;
+    mask.classList.add('has-image');
+    controls.querySelector('[data-act="edit"]').style.display = '';
+    applyTransform(card, data);
+    syncSliders(card, data);
+  } else {
+    main.src = ''; ghost.src = '';
+    mask.classList.remove('has-image');
+    controls.querySelector('[data-act="edit"]').style.display = 'none';
+    main.style.transform = ''; ghost.style.transform = '';
+  }
 }
 
 function setImage(id, src) {
-  const t = { src, x: 0, y: 0, scale: 1, rot: 0 };
-  STATE[id] = t;
+  STATE[id] = { src, x: 0, y: 0, scale: 1, rot: 0 };
   saveState(STATE);
   loadImage(id);
 }
@@ -236,67 +316,78 @@ function updateState(id, partial) {
   if (!STATE[id]) return;
   Object.assign(STATE[id], partial);
   saveState(STATE);
-  const mask = document.querySelector(`.img-mask[data-id="${id}"]`);
-  applyTransform(mask.querySelector('img'), STATE[id]);
+  const card = document.querySelector(`.card[data-id="${id}"]`);
+  applyTransform(card, STATE[id]);
+  syncSliders(card, STATE[id]);
 }
 
 function removeImage(id) {
   delete STATE[id];
   saveState(STATE);
-  const mask = document.querySelector(`.img-mask[data-id="${id}"]`);
-  const img = mask.querySelector('img');
-  img.src = ''; img.style.display = 'none';
-  img.style.transform = '';
-  mask.classList.remove('has-image');
+  const card = document.querySelector(`.card[data-id="${id}"]`);
+  card.classList.remove('editing');
+  loadImage(id);
 }
 
-// Wire up each mask
-document.querySelectorAll('.img-mask').forEach(mask => {
-  const id = parseInt(mask.dataset.id);
-  const img = mask.querySelector('img');
+function setEditing(card, on) {
+  document.querySelectorAll('.card.editing').forEach(c => { if (c !== card) c.classList.remove('editing'); });
+  card.classList.toggle('editing', on);
+}
 
-  // File input wired via <label>; just listen for change
-  const fileInput = mask.querySelector('input[type="file"]');
+// ===== Wire up cards =====
+document.querySelectorAll('.card[data-id]').forEach(card => {
+  const id = parseInt(card.dataset.id);
+
+  // File upload
+  const fileInput = card.querySelector('input[type="file"]');
   fileInput.addEventListener('change', () => {
     const f = fileInput.files[0];
     if (!f) return;
     const r = new FileReader();
-    r.onload = () => setImage(id, r.result);
+    r.onload = () => { setImage(id, r.result); setEditing(card, true); };
     r.readAsDataURL(f);
     fileInput.value = '';
   });
 
-  // Control buttons
-  mask.querySelectorAll('.img-controls button').forEach(btn => {
+  // Control buttons (edit / reset / remove / done)
+  card.querySelectorAll('button[data-act]').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
       const act = btn.dataset.act;
-      if (!STATE[id]) return;
-      if (act === 'rot-l') updateState(id, { rot: STATE[id].rot - 15 });
-      else if (act === 'rot-r') updateState(id, { rot: STATE[id].rot + 15 });
+      if (act === 'edit') setEditing(card, true);
+      else if (act === 'done') setEditing(card, false);
       else if (act === 'reset') updateState(id, { x: 0, y: 0, scale: 1, rot: 0 });
       else if (act === 'remove') removeImage(id);
     });
   });
 
-  // ----- Pointer drag (move) -----
+  // Sliders
+  card.querySelectorAll('input[data-slider]').forEach(slider => {
+    slider.addEventListener('input', () => {
+      const kind = slider.dataset.slider;
+      if (kind === 'rot') updateState(id, { rot: parseFloat(slider.value) });
+      else if (kind === 'scale') updateState(id, { scale: parseFloat(slider.value) / 100 });
+    });
+  });
+
+  // Drag inside mask (only when editing or not — both useful)
+  const stage = card.querySelector('.img-stage');
   let dragging = false;
   let startX = 0, startY = 0, origX = 0, origY = 0;
   const pointers = new Map();
   let pinchStart = null;
 
-  mask.addEventListener('pointerdown', e => {
-    if (!mask.classList.contains('has-image')) return;
-    if (e.target.closest('.img-controls')) return;
-    mask.setPointerCapture(e.pointerId);
+  stage.addEventListener('pointerdown', e => {
+    if (!STATE[id]) return;
+    if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT' || e.target.closest('label')) return;
+    e.preventDefault();
+    stage.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-
     if (pointers.size === 1) {
       dragging = true;
       startX = e.clientX; startY = e.clientY;
       origX = STATE[id].x; origY = STATE[id].y;
     } else if (pointers.size === 2) {
-      // Pinch start
       dragging = false;
       const pts = [...pointers.values()];
       const dx = pts[1].x - pts[0].x, dy = pts[1].y - pts[0].y;
@@ -309,21 +400,17 @@ document.querySelectorAll('.img-mask').forEach(mask => {
     }
   });
 
-  mask.addEventListener('pointermove', e => {
+  stage.addEventListener('pointermove', e => {
     if (!pointers.has(e.pointerId)) return;
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-
     if (pointers.size === 1 && dragging) {
-      updateState(id, {
-        x: origX + (e.clientX - startX),
-        y: origY + (e.clientY - startY),
-      });
+      updateState(id, { x: origX + (e.clientX - startX), y: origY + (e.clientY - startY) });
     } else if (pointers.size === 2 && pinchStart) {
       const pts = [...pointers.values()];
       const dx = pts[1].x - pts[0].x, dy = pts[1].y - pts[0].y;
       const dist = Math.hypot(dx, dy);
       const angle = Math.atan2(dy, dx) * 180 / Math.PI;
-      const newScale = Math.max(0.1, Math.min(10, pinchStart.scale * (dist / pinchStart.dist)));
+      const newScale = Math.max(0.1, Math.min(5, pinchStart.scale * (dist / pinchStart.dist)));
       const newRot = pinchStart.rot + (angle - pinchStart.angle);
       updateState(id, { scale: newScale, rot: newRot });
     }
@@ -334,16 +421,23 @@ document.querySelectorAll('.img-mask').forEach(mask => {
     if (pointers.size < 2) pinchStart = null;
     if (pointers.size === 0) dragging = false;
   }
-  mask.addEventListener('pointerup', endPointer);
-  mask.addEventListener('pointercancel', endPointer);
+  stage.addEventListener('pointerup', endPointer);
+  stage.addEventListener('pointercancel', endPointer);
 
-  // Wheel to zoom
-  mask.addEventListener('wheel', e => {
-    if (!mask.classList.contains('has-image')) return;
+  // Wheel zoom
+  stage.addEventListener('wheel', e => {
+    if (!STATE[id]) return;
     e.preventDefault();
     const factor = e.deltaY < 0 ? 1.1 : 0.9;
-    updateState(id, { scale: Math.max(0.1, Math.min(10, STATE[id].scale * factor)) });
+    updateState(id, { scale: Math.max(0.1, Math.min(5, STATE[id].scale * factor)) });
   }, { passive: false });
+});
+
+// Click outside to exit editing
+document.addEventListener('click', e => {
+  if (!e.target.closest('.card')) {
+    document.querySelectorAll('.card.editing').forEach(c => c.classList.remove('editing'));
+  }
 });
 
 // Restore saved images
@@ -366,12 +460,7 @@ function importData(input) {
       const data = JSON.parse(r.result);
       Object.assign(STATE, data);
       saveState(STATE);
-      CARDS.forEach(c => {
-        const mask = document.querySelector(`.img-mask[data-id="${c.n}"]`);
-        const img = mask.querySelector('img');
-        img.src = ''; img.style.display = 'none'; mask.classList.remove('has-image');
-        loadImage(c.n);
-      });
+      CARDS.forEach(c => loadImage(c.n));
       alert('匯入完成');
     } catch (e) { alert('匯入失敗：' + e.message); }
   };
@@ -382,11 +471,7 @@ function resetAll() {
   if (!confirm('確定清空所有圖片？')) return;
   for (const k of Object.keys(STATE)) delete STATE[k];
   saveState(STATE);
-  document.querySelectorAll('.img-mask').forEach(mask => {
-    const img = mask.querySelector('img');
-    img.src = ''; img.style.display = 'none';
-    mask.classList.remove('has-image');
-  });
+  CARDS.forEach(c => loadImage(c.n));
 }
 </script>
 </body>
