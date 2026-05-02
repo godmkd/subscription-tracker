@@ -70,14 +70,23 @@
     padding: 16px;
     overflow: visible;
   }
-  .card.editing .img-stage {
-    width: 280px; height: 220px;
-    margin: 8px 0;
-  }
-  .card.editing .symbol { font-size: 48pt; margin-top: 0; }
-  .card.editing .vehicle { font-size: 18pt; }
-  .card.editing .pinyin { font-size: 14pt; }
+  /* In edit mode, keep mask the EXACT printed size for WYSIWYG —
+     don't scale the stage. Modal just centers it with extra space. */
+  .card.editing .symbol { font-size: 36pt; margin-top: 0; }
+  .card.editing .vehicle { font-size: 16pt; }
+  .card.editing .pinyin { font-size: 12pt; }
   .card.editing .num { font-size: 11pt; }
+  .card.editing .img-stage { margin: 12px 0; }
+  /* Outline shows where the printed boundary will be — no surprise after 完成 */
+  .card.editing .img-mask::after {
+    content: '↑ 此邊框內 = 印出來的範圍';
+    position: absolute;
+    bottom: -22px; left: 0; right: 0;
+    text-align: center;
+    font-size: 9pt;
+    color: #2563eb;
+    pointer-events: none;
+  }
 
   .num { font-size: 12pt; color: #999; align-self: flex-start; }
   .symbol { font-size: 56pt; font-weight: 900; color: #2563eb; line-height: 1; margin-top: 1mm; }
