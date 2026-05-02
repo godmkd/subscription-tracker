@@ -50,9 +50,10 @@
     position: fixed; inset: 0;
     background: rgba(0,0,0,0.75);
     z-index: 999;
+    touch-action: none;  /* iOS won't pan the underlying page */
   }
   body.has-editing .edit-backdrop { display: block; }
-  body.has-editing { overflow: hidden; }
+  body.has-editing { overflow: hidden; touch-action: none; }
 
   /* Editing card pops to screen center as a modal */
   .card.editing {
@@ -86,6 +87,7 @@
     position: relative;
     width: 65mm; height: 52mm;
     margin: 2mm 0 1mm;
+    touch-action: none;  /* prevent iOS scroll while dragging the image */
   }
   .img-stage .ghost {
     position: absolute;
@@ -362,15 +364,44 @@ function removeImage(id) {
   loadImage(id);
 }
 
+let _savedScrollY = 0;
+function lockBodyScroll(lock) {
+  if (lock) {
+    _savedScrollY = window.scrollY;
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${_savedScrollY}px`;
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+    document.body.style.width = '100%';
+  } else {
+    document.body.style.position = '';
+    document.body.style.top = '';
+    document.body.style.left = '';
+    document.body.style.right = '';
+    document.body.style.width = '';
+    window.scrollTo(0, _savedScrollY);
+  }
+}
 function setEditing(card, on) {
   document.querySelectorAll('.card.editing').forEach(c => { if (c !== card) c.classList.remove('editing'); });
   card.classList.toggle('editing', on);
-  document.body.classList.toggle('has-editing', !!document.querySelector('.card.editing'));
+  const editing = !!document.querySelector('.card.editing');
+  document.body.classList.toggle('has-editing', editing);
+  lockBodyScroll(editing);
 }
 function closeEditing() {
   document.querySelectorAll('.card.editing').forEach(c => c.classList.remove('editing'));
   document.body.classList.remove('has-editing');
+  lockBodyScroll(false);
 }
+
+// Prevent any touch from scrolling the underlying page during edit
+document.addEventListener('touchmove', e => {
+  if (!document.body.classList.contains('has-editing')) return;
+  // Allow touch on the editing card itself (sliders, image drag)
+  if (e.target.closest('.card.editing')) return;
+  e.preventDefault();
+}, { passive: false });
 
 // ===== Wire up cards =====
 document.querySelectorAll('.card[data-id]').forEach(card => {
