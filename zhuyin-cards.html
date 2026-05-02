@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>注音車車卡 37</title>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   @page { size: A4; margin: 8mm; }
   body { font-family: "PingFang TC", "Heiti TC", "Microsoft JhengHei", sans-serif; margin: 0; }
@@ -194,18 +196,40 @@
     .card.editing { z-index: auto; }
     .card.editing .ghost { opacity: 0 !important; }
   }
+  /* When exporting PDF — same as @media print but applied via class */
+  body.printing .toolbar { display: none; }
+  body.printing { background: white; padding: 0; }
+  body.printing .img-controls,
+  body.printing .edit-panel { display: none !important; }
+  body.printing .img-mask { border-color: transparent; background: transparent; }
+  body.printing .upload-btn { display: none !important; }
+  body.printing .ghost { opacity: 0 !important; }
+  body.printing .page { box-shadow: none !important; margin: 0 !important; }
+
+  /* PDF export progress overlay */
+  .pdf-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 9999;
+    align-items: center; justify-content: center;
+    color: white; font-size: 18px;
+  }
+  body.exporting .pdf-overlay { display: flex; }
 </style>
 </head>
 <body>
 
 <div class="toolbar">
   <span>📷 點圖框上傳 → 編輯視窗會跳到中央，其他卡片暫時鎖住。</span>
+  <button onclick="exportPDF()">📄 輸出 PDF</button>
   <button onclick="exportData()">匯出存檔</button>
   <button onclick="document.getElementById('importFile').click()">匯入存檔</button>
   <button class="danger" onclick="resetAll()">清空全部</button>
   <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(this)">
 </div>
 <div class="edit-backdrop"></div>
+<div class="pdf-overlay" id="pdfOverlay"><span id="pdfProgress">準備產出 PDF...</span></div>
 
 <script>
 const CARDS = [
@@ -520,6 +544,43 @@ document.addEventListener('keydown', e => {
 
 // Restore saved images
 CARDS.forEach(c => loadImage(c.n));
+
+// ===== PDF export =====
+async function exportPDF() {
+  if (!window.html2canvas || !window.jspdf) {
+    alert('PDF 函式庫還沒載入完成，請稍等幾秒再試');
+    return;
+  }
+  const { jsPDF } = window.jspdf;
+  // close any open editor first
+  closeEditing();
+  document.body.classList.add('printing', 'exporting');
+  const overlay = document.getElementById('pdfProgress');
+  const pages = document.querySelectorAll('.page');
+  try {
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+    for (let i = 0; i < pages.length; i++) {
+      overlay.textContent = `產出 PDF... 第 ${i + 1} / ${pages.length} 頁`;
+      // Yield to browser so progress text updates
+      await new Promise(r => setTimeout(r, 30));
+      const canvas = await html2canvas(pages[i], {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        logging: false,
+      });
+      const imgData = canvas.toDataURL('image/jpeg', 0.88);
+      if (i > 0) pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+    }
+    overlay.textContent = '儲存中...';
+    pdf.save(`zhuyin-cards-${new Date().toISOString().slice(0,10)}.pdf`);
+  } catch (e) {
+    alert('PDF 產出失敗: ' + e.message);
+  } finally {
+    document.body.classList.remove('printing', 'exporting');
+  }
+}
 
 // ===== Export / Import / Reset =====
 function exportData() {
