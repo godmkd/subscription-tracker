@@ -91,7 +91,7 @@
     position: absolute;
     top: 50%; left: 50%;
     max-width: none;
-    transform-origin: 0 0;
+    transform-origin: 50% 50%;
     pointer-events: none;
     user-select: none;
     -webkit-user-drag: none;
@@ -115,7 +115,7 @@
     position: absolute;
     top: 50%; left: 50%;
     max-width: none;
-    transform-origin: 0 0;
+    transform-origin: 50% 50%;
     pointer-events: none;
     user-select: none;
     -webkit-user-drag: none;
@@ -194,7 +194,7 @@
   <button class="danger" onclick="resetAll()">清空全部</button>
   <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(this)">
 </div>
-<div class="edit-backdrop" onclick="closeEditing()"></div>
+<div class="edit-backdrop"></div>
 
 <script>
 const CARDS = [
