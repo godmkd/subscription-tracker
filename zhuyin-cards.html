@@ -43,7 +43,40 @@
     box-sizing: border-box;
     position: relative;
   }
-  .card.editing { z-index: 100; }
+
+  /* Modal backdrop locks the rest of the page */
+  .edit-backdrop {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.75);
+    z-index: 999;
+  }
+  body.has-editing .edit-backdrop { display: block; }
+  body.has-editing { overflow: hidden; }
+
+  /* Editing card pops to screen center as a modal */
+  .card.editing {
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 380px; max-width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+    z-index: 1000;
+    background: #fff;
+    border: 3px solid #2563eb;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    padding: 16px;
+    overflow: visible;
+  }
+  .card.editing .img-stage {
+    width: 280px; height: 220px;
+    margin: 8px 0;
+  }
+  .card.editing .symbol { font-size: 48pt; margin-top: 0; }
+  .card.editing .vehicle { font-size: 18pt; }
+  .card.editing .pinyin { font-size: 14pt; }
+  .card.editing .num { font-size: 11pt; }
 
   .num { font-size: 12pt; color: #999; align-self: flex-start; }
   .symbol { font-size: 56pt; font-weight: 900; color: #2563eb; line-height: 1; margin-top: 1mm; }
@@ -155,12 +188,13 @@
 <body>
 
 <div class="toolbar">
-  <span>📷 點圖框上傳 → 點 ✏️ 編輯。編輯時圖片會超出遮罩半透明顯示，方便對位。</span>
+  <span>📷 點圖框上傳 → 編輯視窗會跳到中央，其他卡片暫時鎖住。</span>
   <button onclick="exportData()">匯出存檔</button>
   <button onclick="document.getElementById('importFile').click()">匯入存檔</button>
   <button class="danger" onclick="resetAll()">清空全部</button>
   <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(this)">
 </div>
+<div class="edit-backdrop" onclick="closeEditing()"></div>
 
 <script>
 const CARDS = [
@@ -324,14 +358,18 @@ function updateState(id, partial) {
 function removeImage(id) {
   delete STATE[id];
   saveState(STATE);
-  const card = document.querySelector(`.card[data-id="${id}"]`);
-  card.classList.remove('editing');
+  closeEditing();
   loadImage(id);
 }
 
 function setEditing(card, on) {
   document.querySelectorAll('.card.editing').forEach(c => { if (c !== card) c.classList.remove('editing'); });
   card.classList.toggle('editing', on);
+  document.body.classList.toggle('has-editing', !!document.querySelector('.card.editing'));
+}
+function closeEditing() {
+  document.querySelectorAll('.card.editing').forEach(c => c.classList.remove('editing'));
+  document.body.classList.remove('has-editing');
 }
 
 // ===== Wire up cards =====
@@ -355,7 +393,7 @@ document.querySelectorAll('.card[data-id]').forEach(card => {
       e.stopPropagation();
       const act = btn.dataset.act;
       if (act === 'edit') setEditing(card, true);
-      else if (act === 'done') setEditing(card, false);
+      else if (act === 'done') closeEditing();
       else if (act === 'reset') updateState(id, { x: 0, y: 0, scale: 1, rot: 0 });
       else if (act === 'remove') removeImage(id);
     });
@@ -433,11 +471,9 @@ document.querySelectorAll('.card[data-id]').forEach(card => {
   }, { passive: false });
 });
 
-// Click outside to exit editing
-document.addEventListener('click', e => {
-  if (!e.target.closest('.card')) {
-    document.querySelectorAll('.card.editing').forEach(c => c.classList.remove('editing'));
-  }
+// ESC key closes the modal
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeEditing();
 });
 
 // Restore saved images
