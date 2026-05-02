@@ -457,6 +457,7 @@ document.querySelectorAll('.card[data-id]').forEach(card => {
 
   stage.addEventListener('pointerdown', e => {
     if (!STATE[id]) return;
+    if (!card.classList.contains('editing')) return;
     if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT' || e.target.closest('label')) return;
     e.preventDefault();
     stage.setPointerCapture(e.pointerId);
@@ -505,6 +506,7 @@ document.querySelectorAll('.card[data-id]').forEach(card => {
   // Wheel zoom
   stage.addEventListener('wheel', e => {
     if (!STATE[id]) return;
+    if (!card.classList.contains('editing')) return;
     e.preventDefault();
     const factor = e.deltaY < 0 ? 1.1 : 0.9;
     updateState(id, { scale: Math.max(0.1, Math.min(5, STATE[id].scale * factor)) });
