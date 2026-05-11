@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>文字轉 MP3 — 點讀筆教材製作</title>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a1a;color:#e0e0e0;min-height:100vh;padding-bottom:60px}
+.header{background:linear-gradient(135deg,#0f0c29,#302b63);padding:18px 24px;border-bottom:1px solid rgba(255,255,255,0.08)}
+.header h1{font-size:1.25em;background:linear-gradient(90deg,#f59e0b,#fbbf24);-webkit-background-clip:text;-webkit-text-fill-color:transparent;display:inline-block}
+.header .sub{font-size:.8em;color:#888;margin-top:4px}
+.content{max-width:880px;margin:0 auto;padding:18px}
+.section{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:16px;margin-bottom:16px}
+.section h2{font-size:.95em;color:#fbbf24;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.section h2 .badge{background:rgba(251,191,36,0.15);color:#fbbf24;padding:2px 8px;border-radius:10px;font-size:.75em;font-weight:500}
+label{display:block;font-size:.82em;color:#888;margin-bottom:6px}
+input[type=text],input[type=password],input[type=number],select,textarea{width:100%;padding:8px 12px;border:1px solid rgba(255,255,255,0.15);border-radius:6px;background:rgba(255,255,255,0.06);color:#fff;font-size:.9em;font-family:inherit}
+textarea{font-family:'SF Mono',Menlo,monospace;font-size:.85em;min-height:160px;resize:vertical;line-height:1.5}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#fbbf24;background:rgba(255,255,255,0.09)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+.row > .col{flex:1;min-width:120px}
+.btn{padding:9px 18px;border:none;border-radius:8px;font-size:.9em;font-weight:600;cursor:pointer;transition:all .15s}
+.btn-primary{background:linear-gradient(135deg,#f59e0b,#fbbf24);color:#000}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(251,191,36,0.3)}
+.btn-primary:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+.btn-secondary{background:rgba(255,255,255,0.08);color:#ddd;border:1px solid rgba(255,255,255,0.15)}
+.btn-secondary:hover{background:rgba(255,255,255,0.14)}
+.btn-danger{background:transparent;border:1px solid #f87171;color:#f87171;padding:4px 10px;font-size:.75em}
+.btn-danger:hover{background:#f87171;color:#fff}
+.group-row{display:flex;gap:8px;align-items:end;margin-bottom:8px;flex-wrap:wrap}
+.group-row .col{flex:1;min-width:80px}
+.group-row .count{color:#34d399;font-size:.78em;padding-bottom:10px;white-space:nowrap}
+.help{font-size:.78em;color:#666;margin-top:6px;line-height:1.5}
+.status{margin-top:10px;padding:10px 14px;border-radius:8px;font-size:.85em;display:none}
+.status.show{display:block}
+.status.info{background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);color:#a5b4fc}
+.status.success{background:rgba(52,211,153,0.15);border:1px solid rgba(52,211,153,0.3);color:#34d399}
+.status.error{background:rgba(248,113,113,0.15);border:1px solid rgba(248,113,113,0.3);color:#fca5a5}
+.preview-row{display:flex;gap:8px;margin-top:8px;align-items:center}
+.preview-row input{flex:1}
+.progress-bar{height:6px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;margin-top:8px}
+.progress-bar > div{height:100%;background:linear-gradient(90deg,#f59e0b,#fbbf24);width:0%;transition:width .2s}
+.file-list{max-height:200px;overflow-y:auto;font-family:'SF Mono',Menlo,monospace;font-size:.8em;line-height:1.6;color:#aaa;margin-top:8px;padding:8px 12px;background:rgba(0,0,0,0.2);border-radius:6px}
+.file-list .ok{color:#34d399}
+.file-list .skip{color:#666}
+.file-list .err{color:#f87171}
+@media (max-width:600px){
+  .group-row .col{flex:1 1 calc(50% - 4px);min-width:0}
+  .row > .col{min-width:100%}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🎙️ 文字轉 MP3 — 點讀筆教材製作</h1>
+  <div class="sub">Google Cloud Text-to-Speech · 每月 100 萬字免費</div>
+</div>
+
+<div class="content">
+
+  <!-- API Key -->
+  <div class="section">
+    <h2>🔑 Google TTS API Key <span class="badge" id="keyStatus">未設定</span></h2>
+    <div class="row">
+      <div class="col"><input type="password" id="apiKey" placeholder="貼上你的 Google Cloud TTS API key"></div>
+      <button class="btn btn-secondary" onclick="saveApiKey()">儲存</button>
+      <button class="btn btn-secondary" onclick="clearApiKey()">清除</button>
+    </div>
+    <div class="help">
+      Key 只存你瀏覽器 localStorage，不上傳任何地方。<br>
+      取得方式：<a href="https://console.cloud.google.com/" target="_blank" style="color:#fbbf24">GCP Console</a> → 啟用 Cloud Text-to-Speech API → 建立 API 金鑰
+    </div>
+  </div>
+
+  <!-- Voice Settings -->
+  <div class="section">
+    <h2>🔊 聲音設定</h2>
+    <div class="row">
+      <div class="col">
+        <label>聲音</label>
+        <select id="voiceName">
+          <optgroup label="中文（台灣）">
+            <option value="cmn-TW-Wavenet-A">cmn-TW-Wavenet-A 台灣女聲</option>
+            <option value="cmn-TW-Wavenet-B">cmn-TW-Wavenet-B 台灣男聲</option>
+            <option value="cmn-TW-Wavenet-C">cmn-TW-Wavenet-C 台灣女聲 2</option>
+            <option value="cmn-TW-Standard-A">cmn-TW-Standard-A (一般)</option>
+          </optgroup>
+          <optgroup label="中文（中國）">
+            <option value="cmn-CN-Wavenet-A">cmn-CN-Wavenet-A 普通話女聲</option>
+            <option value="cmn-CN-Wavenet-B">cmn-CN-Wavenet-B 普通話男聲</option>
+          </optgroup>
+          <optgroup label="英文">
+            <option value="en-US-Wavenet-F">en-US-Wavenet-F 美國女聲（適合小孩）</option>
+            <option value="en-US-Wavenet-C">en-US-Wavenet-C 美國女聲</option>
+            <option value="en-US-Wavenet-D">en-US-Wavenet-D 美國男聲</option>
+            <option value="en-GB-Wavenet-A">en-GB-Wavenet-A 英國女聲</option>
+          </optgroup>
+        </select>
+      </div>
+      <div class="col" style="max-width:120px">
+        <label>語速</label>
+        <select id="rate">
+          <option value="0.7">0.7×（慢）</option>
+          <option value="0.85">0.85×</option>
+          <option value="1.0" selected>1.0×（正常）</option>
+          <option value="1.15">1.15×</option>
+          <option value="1.3">1.3×（快）</option>
+        </select>
+      </div>
+      <div class="col" style="max-width:120px">
+        <label>音調</label>
+        <select id="pitch">
+          <option value="-4">-4（低）</option>
+          <option value="-2">-2</option>
+          <option value="0" selected>0（正常）</option>
+          <option value="2">+2</option>
+          <option value="4">+4（高）</option>
+        </select>
+      </div>
+    </div>
+    <div class="preview-row">
+      <input type="text" id="previewText" placeholder="試聽：打一段文字按播放" value="你好，我是點讀筆">
+      <button class="btn btn-secondary" onclick="previewVoice()">▶ 試聽</button>
+    </div>
+  </div>
+
+  <!-- Filename Rules -->
+  <div class="section">
+    <h2>📝 檔名規則 <span class="badge" id="filenameCount">0 個檔名</span></h2>
+    <div id="groupList"></div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+      <button class="btn btn-secondary" onclick="addGroup()">＋ 加一組</button>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
+        <label style="margin:0">數字補零</label>
+        <select id="padDigits" style="width:auto" onchange="updateGroupCount()">
+          <option value="auto" selected>自動</option>
+          <option value="2">2 位 (01)</option>
+          <option value="3">3 位 (001)</option>
+          <option value="4">4 位 (0001)</option>
+        </select>
+      </div>
+    </div>
+    <div class="help">
+      每組會占用「(到 − 從 + 1)」個檔名。第一組用完，下一組自動接著編號。<br>
+      例：字首「apple_」從 1 到 10 → apple_001.mp3 ~ apple_010.mp3
+    </div>
+  </div>
+
+  <!-- Text Input -->
+  <div class="section">
+    <h2>✏️ 文字內容 <span class="badge" id="lineCount">0 行</span></h2>
+    <textarea id="textInput" placeholder="每行一句／一段，會產生一個 MP3 檔。&#10;例：&#10;蘋果&#10;這是一顆紅色的蘋果&#10;小明今天吃了三顆蘋果" oninput="updateLineCount()"></textarea>
+  </div>
+
+  <!-- Generate -->
+  <div class="section">
+    <h2>📦 產生與下載</h2>
+    <div class="row">
+      <button class="btn btn-primary" onclick="generateAll()" id="generateBtn">🚀 全部產生 + 下載 ZIP</button>
+      <div class="col">
+        <label>ZIP 檔名</label>
+        <input type="text" id="zipName" placeholder="tts-export" value="tts-export">
+      </div>
+    </div>
+    <div class="progress-bar" id="progressBar" style="display:none"><div></div></div>
+    <div class="status" id="status"></div>
+    <div class="file-list" id="fileList" style="display:none"></div>
+  </div>
+
+</div>
+
+<script>
+let groups = [];   // [{prefix, from, to}]
+
+// ========== Persistence ==========
+function loadState() {
+  try {
+    const key = localStorage.getItem('tts_api_key') || '';
+    document.getElementById('apiKey').value = key;
+    updateKeyStatus();
+    const v = localStorage.getItem('tts_voice');
+    if (v) document.getElementById('voiceName').value = v;
+    const r = localStorage.getItem('tts_rate');
+    if (r) document.getElementById('rate').value = r;
+    const p = localStorage.getItem('tts_pitch');
+    if (p) document.getElementById('pitch').value = p;
+    const pd = localStorage.getItem('tts_pad');
+    if (pd) document.getElementById('padDigits').value = pd;
+    const g = JSON.parse(localStorage.getItem('tts_groups') || '[]');
+    groups = Array.isArray(g) && g.length ? g : [{ prefix: 'audio_', from: 1, to: 10 }];
+    renderGroups();
+    const txt = localStorage.getItem('tts_text');
+    if (txt) document.getElementById('textInput').value = txt;
+    updateLineCount();
+  } catch (e) {
+    groups = [{ prefix: 'audio_', from: 1, to: 10 }];
+    renderGroups();
+  }
+}
+
+function saveState() {
+  localStorage.setItem('tts_voice', document.getElementById('voiceName').value);
+  localStorage.setItem('tts_rate', document.getElementById('rate').value);
+  localStorage.setItem('tts_pitch', document.getElementById('pitch').value);
+  localStorage.setItem('tts_pad', document.getElementById('padDigits').value);
+  localStorage.setItem('tts_groups', JSON.stringify(groups));
+  localStorage.setItem('tts_text', document.getElementById('textInput').value);
+}
+
+function saveApiKey() {
+  const k = document.getElementById('apiKey').value.trim();
+  if (!k) { alert('請貼上 API key'); return; }
+  localStorage.setItem('tts_api_key', k);
+  updateKeyStatus();
+  showStatus('info', 'API key 已儲存');
+}
+
+function clearApiKey() {
+  if (!confirm('清除已儲存的 API key？')) return;
+  localStorage.removeItem('tts_api_key');
+  document.getElementById('apiKey').value = '';
+  updateKeyStatus();
+}
+
+function updateKeyStatus() {
+  const k = localStorage.getItem('tts_api_key') || '';
+  const el = document.getElementById('keyStatus');
+  el.textContent = k ? '已設定' : '未設定';
+  el.style.color = k ? '#34d399' : '#888';
+  el.style.background = k ? 'rgba(52,211,153,0.15)' : 'rgba(255,255,255,0.08)';
+}
+
+// ========== Filename Groups ==========
+function renderGroups() {
+  const el = document.getElementById('groupList');
+  el.innerHTML = '';
+  groups.forEach((g, i) => {
+    const div = document.createElement('div');
+    div.className = 'group-row';
+    div.innerHTML = `
+      <div class="col" style="flex:2;min-width:120px">
+        <label>字首</label>
+        <input type="text" value="${escapeHTML(g.prefix)}" oninput="updateGroup(${i},'prefix',this.value)" placeholder="apple_">
+      </div>
+      <div class="col" style="max-width:80px">
+        <label>從</label>
+        <input type="number" value="${g.from}" min="0" oninput="updateGroup(${i},'from',this.value)">
+      </div>
+      <div class="col" style="max-width:80px">
+        <label>到</label>
+        <input type="number" value="${g.to}" min="0" oninput="updateGroup(${i},'to',this.value)">
+      </div>
+      <div class="count" id="groupCount_${i}">= 0 個</div>
+      <button class="btn-danger" onclick="removeGroup(${i})" ${groups.length === 1 ? 'style="visibility:hidden"' : ''}>✕</button>
+    `;
+    el.appendChild(div);
+  });
+  updateGroupCount();
+}
+
+function updateGroup(i, field, val) {
+  if (field === 'prefix') groups[i].prefix = val;
+  else groups[i][field] = parseInt(val) || 0;
+  updateGroupCount();
+  saveState();
+}
+
+function addGroup() {
+  const last = groups[groups.length - 1] || { prefix: '', from: 0, to: 0 };
+  groups.push({ prefix: last.prefix, from: last.to + 1, to: last.to + 10 });
+  renderGroups();
+  saveState();
+}
+
+function removeGroup(i) {
+  if (groups.length === 1) return;
+  groups.splice(i, 1);
+  renderGroups();
+  saveState();
+}
+
+function updateGroupCount() {
+  let total = 0;
+  groups.forEach((g, i) => {
+    const n = Math.max(0, g.to - g.from + 1);
+    total += n;
+    const c = document.getElementById('groupCount_' + i);
+    if (c) c.textContent = `= ${n} 個`;
+  });
+  document.getElementById('filenameCount').textContent = total + ' 個檔名';
+}
+
+// ========== Filename generation ==========
+function generateFilenames() {
+  const padMode = document.getElementById('padDigits').value;
+  const out = [];
+  for (const g of groups) {
+    if (!g.prefix || g.from > g.to) continue;
+    const width = padMode === 'auto' ? String(g.to).length : parseInt(padMode);
+    for (let n = g.from; n <= g.to; n++) {
+      out.push(g.prefix + String(n).padStart(width, '0'));
+    }
+  }
+  return out;
+}
+
+// ========== Text / Lines ==========
+function updateLineCount() {
+  const lines = getLines();
+  document.getElementById('lineCount').textContent = lines.length + ' 行';
+  saveState();
+}
+
+function getLines() {
+  return document.getElementById('textInput').value
+    .split('\n')
+    .map(s => s.trim())
+    .filter(s => s.length > 0);
+}
+
+// ========== Google TTS ==========
+async function synthesize(text) {
+  const key = localStorage.getItem('tts_api_key');
+  if (!key) throw new Error('沒設定 API key');
+  const body = {
+    input: { text },
+    voice: {
+      languageCode: document.getElementById('voiceName').value.split('-').slice(0, 2).join('-'),
+      name: document.getElementById('voiceName').value
+    },
+    audioConfig: {
+      audioEncoding: 'MP3',
+      speakingRate: parseFloat(document.getElementById('rate').value),
+      pitch: parseFloat(document.getElementById('pitch').value)
+    }
+  };
+  const res = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(key)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(`HTTP ${res.status}: ${t.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  if (!data.audioContent) throw new Error('回應沒有 audioContent');
+  return base64ToBlob(data.audioContent, 'audio/mp3');
+}
+
+function base64ToBlob(b64, mime) {
+  const bytes = atob(b64);
+  const arr = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+
+// ========== Preview ==========
+async function previewVoice() {
+  const t = document.getElementById('previewText').value.trim();
+  if (!t) { alert('輸入試聽文字'); return; }
+  if (!localStorage.getItem('tts_api_key')) { alert('請先設 API key'); return; }
+  saveState();
+  try {
+    showStatus('info', '抓音檔中...');
+    const blob = await synthesize(t);
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    audio.play();
+    showStatus('success', '播放中');
+  } catch (e) {
+    showStatus('error', '試聽失敗：' + e.message);
+  }
+}
+
+// ========== Generate All ==========
+async function generateAll() {
+  if (!localStorage.getItem('tts_api_key')) { alert('請先設 API key'); return; }
+  saveState();
+  const lines = getLines();
+  const filenames = generateFilenames();
+  if (lines.length === 0) { alert('沒有文字內容'); return; }
+  if (filenames.length === 0) { alert('沒有檔名（檢查檔名規則）'); return; }
+
+  const useCount = Math.min(lines.length, filenames.length);
+  const btn = document.getElementById('generateBtn');
+  btn.disabled = true;
+  btn.textContent = '產生中...';
+  const bar = document.getElementById('progressBar');
+  bar.style.display = 'block';
+  bar.querySelector('div').style.width = '0%';
+  const fl = document.getElementById('fileList');
+  fl.style.display = 'block';
+  fl.innerHTML = '';
+
+  const zip = new JSZip();
+  let success = 0;
+  let failed = 0;
+  for (let i = 0; i < useCount; i++) {
+    const text = lines[i];
+    const fname = filenames[i] + '.mp3';
+    try {
+      const blob = await synthesize(text);
+      zip.file(fname, blob);
+      success++;
+      fl.innerHTML += `<div class="ok">✓ ${fname} — ${text.slice(0, 30)}${text.length > 30 ? '…' : ''}</div>`;
+    } catch (e) {
+      failed++;
+      fl.innerHTML += `<div class="err">✗ ${fname} — ${e.message}</div>`;
+    }
+    fl.scrollTop = fl.scrollHeight;
+    bar.querySelector('div').style.width = ((i + 1) / useCount * 100) + '%';
+    await new Promise(r => setTimeout(r, 100)); // light pacing
+  }
+
+  // Skipped lines (text > filenames)
+  for (let i = useCount; i < lines.length; i++) {
+    fl.innerHTML += `<div class="skip">○ 略過（無檔名）— ${lines[i].slice(0, 30)}</div>`;
+  }
+  // Unused filenames (filenames > text)
+  for (let i = useCount; i < filenames.length; i++) {
+    fl.innerHTML += `<div class="skip">○ ${filenames[i]}.mp3 — 無對應文字</div>`;
+  }
+
+  if (success > 0) {
+    showStatus('info', '打包 ZIP...');
+    const content = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(content);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (document.getElementById('zipName').value.trim() || 'tts-export') + '.zip';
+    a.click();
+    URL.revokeObjectURL(url);
+    showStatus('success', `完成：${success} 個檔案${failed ? `（${failed} 個失敗）` : ''}，ZIP 已下載`);
+  } else {
+    showStatus('error', `全部失敗（${failed} 個）`);
+  }
+
+  btn.disabled = false;
+  btn.textContent = '🚀 全部產生 + 下載 ZIP';
+}
+
+// ========== Utilities ==========
+function showStatus(kind, msg) {
+  const el = document.getElementById('status');
+  el.className = 'status show ' + kind;
+  el.textContent = msg;
+}
+
+function escapeHTML(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+// Wire up changes to save settings
+['voiceName', 'rate', 'pitch', 'padDigits'].forEach(id => {
+  document.getElementById(id).addEventListener('change', saveState);
+});
+
+loadState();
+</script>
+
+</body>
+</html>
