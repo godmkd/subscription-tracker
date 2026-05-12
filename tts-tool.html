@@ -125,6 +125,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#fbbf24;backgr
       <input type="text" id="previewText" placeholder="試聽：打一段文字按播放" value="你好，我是點讀筆">
       <button class="btn btn-secondary" onclick="previewVoice()">▶ 試聽</button>
     </div>
+    <div class="status" id="previewStatus"></div>
+    <audio id="previewAudio" controls style="display:none;width:100%;margin-top:8px"></audio>
   </div>
 
   <!-- Filename Rules -->
@@ -361,19 +363,32 @@ function base64ToBlob(b64, mime) {
 // ========== Preview ==========
 async function previewVoice() {
   const t = document.getElementById('previewText').value.trim();
-  if (!t) { alert('輸入試聽文字'); return; }
-  if (!localStorage.getItem('tts_api_key')) { alert('請先設 API key'); return; }
+  if (!t) { showPreviewStatus('error', '請輸入試聽文字'); return; }
+  if (!localStorage.getItem('tts_api_key')) { showPreviewStatus('error', '請先設 API key 並按「儲存」'); return; }
   saveState();
+  const audioEl = document.getElementById('previewAudio');
+  audioEl.style.display = 'none';
   try {
-    showStatus('info', '抓音檔中...');
+    showPreviewStatus('info', '呼叫 Google TTS API...');
     const blob = await synthesize(t);
     const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
-    audio.play();
-    showStatus('success', '播放中');
+    audioEl.src = url;
+    audioEl.style.display = 'block';
+    try {
+      await audioEl.play();
+      showPreviewStatus('success', '✓ 播放中（聽不到聲音的話，檢查系統音量 / 或用上面播放器手動播放）');
+    } catch (playErr) {
+      showPreviewStatus('info', '音檔已產生，請按上方播放器的 ▶ 鍵手動播放（瀏覽器擋自動播放）');
+    }
   } catch (e) {
-    showStatus('error', '試聽失敗：' + e.message);
+    showPreviewStatus('error', '失敗：' + e.message);
   }
+}
+
+function showPreviewStatus(kind, msg) {
+  const el = document.getElementById('previewStatus');
+  el.className = 'status show ' + kind;
+  el.textContent = msg;
 }
 
 // ========== Generate All ==========
