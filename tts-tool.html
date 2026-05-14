@@ -46,6 +46,18 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#fbbf24;backgr
 .file-list .ok{color:#34d399}
 .file-list .skip{color:#666}
 .file-list .err{color:#f87171}
+.tab-nav{display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid rgba(255,255,255,0.08)}
+.tab-nav button{padding:10px 18px;background:transparent;border:none;color:#888;cursor:pointer;font-size:.95em;font-weight:600;border-bottom:2px solid transparent;transition:all .15s}
+.tab-nav button.active{color:#fbbf24;border-bottom-color:#fbbf24}
+.tab-nav button:hover{color:#fbbf24}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+.sfx-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid rgba(167,139,250,0.3);background:rgba(167,139,250,0.08);border-radius:16px;font-size:.82em;color:#c4b5fd;cursor:pointer;margin:3px}
+.sfx-chip:hover{background:rgba(167,139,250,0.2)}
+.sfx-chip .x{color:#f87171;font-size:.9em;margin-left:4px}
+.sfx-chip .play{color:#34d399}
+.sfx-list{display:flex;flex-wrap:wrap;margin:8px 0;min-height:30px}
+.toolbar{display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap}
 @media (max-width:600px){
   .group-row .col{flex:1 1 calc(50% - 4px);min-width:0}
   .row > .col{min-width:100%}
@@ -129,6 +141,15 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#fbbf24;backgr
     <audio id="previewAudio" controls style="display:none;width:100%;margin-top:8px"></audio>
   </div>
 
+  <!-- ===== Tab Nav ===== -->
+  <div class="tab-nav">
+    <button id="tabBatchBtn" class="active" onclick="switchTab('batch')">📦 批量音檔製作</button>
+    <button id="tabRecordBtn" onclick="switchTab('record')">🎬 錄音檔製作</button>
+  </div>
+
+  <!-- ===== BATCH TAB ===== -->
+  <div id="batchTab" class="tab-panel active">
+
   <!-- Filename Rules -->
   <div class="section">
     <h2>📝 檔名規則 <span class="badge" id="filenameCount">0 個檔名</span></h2>
@@ -176,6 +197,42 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#fbbf24;backgr
     <div class="status" id="status"></div>
     <div class="file-list" id="fileList" style="display:none"></div>
   </div>
+
+  </div><!-- /batchTab -->
+
+  <!-- ===== RECORDING TAB ===== -->
+  <div id="recordTab" class="tab-panel">
+
+  <!-- Sound effect library -->
+  <div class="section">
+    <h2>🎵 音效庫 <span class="badge" id="sfxCount">0 個</span></h2>
+    <div class="toolbar">
+      <input type="file" id="sfxUpload" accept="audio/*" multiple style="display:none" onchange="onSfxUpload(event)">
+      <button class="btn btn-secondary" onclick="document.getElementById('sfxUpload').click()">📤 上傳音效</button>
+      <span style="color:#666;font-size:.78em">支援 MP3 / WAV / M4A，檔名（去副檔名）就是音效標籤</span>
+    </div>
+    <div id="sfxList" class="sfx-list"></div>
+    <div class="help">
+      點任一音效標籤可試聽。檔名（如 <code>狗叫.mp3</code>）就是音效名稱，文字裡用 <code>[音效:狗叫]</code> 引用。<br>
+      免費音效來源：<a href="https://pixabay.com/sound-effects/" target="_blank" style="color:#fbbf24">Pixabay</a>、<a href="https://freesound.org/" target="_blank" style="color:#fbbf24">Freesound</a>
+    </div>
+  </div>
+
+  <!-- Story text -->
+  <div class="section">
+    <h2>📖 故事文字 <span class="badge" id="recordCharCount">0 字</span></h2>
+    <textarea id="recordText" placeholder="例：&#10;小狗看到骨頭很開心 [音效:狗叫] 他跑過去咬起來。&#10;天空打雷了 [音效:打雷] 他嚇得跑回家。&#10;&#10;TTS 會唸文字、[音效:XXX] 會換成你上傳的音效，串成一段連續音檔。" oninput="onRecordTextChange()"></textarea>
+    <div class="toolbar">
+      <button class="btn btn-secondary" onclick="insertSfxAtCursor()">🎵 插入音效</button>
+      <button class="btn btn-secondary" onclick="clearRecordText()">🗑 清空文字</button>
+      <button class="btn btn-primary" style="margin-left:auto" onclick="buildAndPlay()" id="buildBtn">▶ 製作試聽</button>
+    </div>
+    <div class="status" id="recordStatus"></div>
+    <audio id="recordAudio" controls style="display:none;width:100%;margin-top:8px"></audio>
+    <div class="help">文字 + 上傳的音效會保留下來，重新整理 / 關掉瀏覽器也不會消失。重新「製作試聽」才會更新音檔。</div>
+  </div>
+
+  </div><!-- /recordTab -->
 
 </div>
 
@@ -552,6 +609,330 @@ function escapeHTML(s) {
 });
 
 loadState();
+
+// ============================================================
+// ===== RECORDING TAB: Story builder with sound effects ======
+// ============================================================
+
+// ---------- Tab switching ----------
+function switchTab(name) {
+  document.getElementById('tabBatchBtn').classList.toggle('active', name === 'batch');
+  document.getElementById('tabRecordBtn').classList.toggle('active', name === 'record');
+  document.getElementById('batchTab').classList.toggle('active', name === 'batch');
+  document.getElementById('recordTab').classList.toggle('active', name === 'record');
+  localStorage.setItem('tts_active_tab', name);
+  if (name === 'record') renderSfxList();
+}
+
+// ---------- IndexedDB for sound effect blobs ----------
+let _db = null;
+function openSfxDB() {
+  if (_db) return Promise.resolve(_db);
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('tts_sfx', 1);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains('sfx')) db.createObjectStore('sfx', { keyPath: 'name' });
+    };
+    req.onsuccess = e => { _db = e.target.result; resolve(_db); };
+    req.onerror = e => reject(e);
+  });
+}
+
+async function saveSfx(name, blob) {
+  const db = await openSfxDB();
+  return new Promise((res, rej) => {
+    const tx = db.transaction('sfx', 'readwrite');
+    tx.objectStore('sfx').put({ name, blob, at: Date.now() });
+    tx.oncomplete = () => res();
+    tx.onerror = e => rej(e);
+  });
+}
+
+async function getSfx(name) {
+  const db = await openSfxDB();
+  return new Promise((res, rej) => {
+    const tx = db.transaction('sfx', 'readonly');
+    const r = tx.objectStore('sfx').get(name);
+    r.onsuccess = () => res(r.result ? r.result.blob : null);
+    r.onerror = e => rej(e);
+  });
+}
+
+async function listSfx() {
+  const db = await openSfxDB();
+  return new Promise((res, rej) => {
+    const tx = db.transaction('sfx', 'readonly');
+    const r = tx.objectStore('sfx').getAll();
+    r.onsuccess = () => res((r.result || []).map(x => x.name).sort());
+    r.onerror = e => rej(e);
+  });
+}
+
+async function deleteSfx(name) {
+  const db = await openSfxDB();
+  return new Promise((res, rej) => {
+    const tx = db.transaction('sfx', 'readwrite');
+    tx.objectStore('sfx').delete(name);
+    tx.oncomplete = () => res();
+    tx.onerror = e => rej(e);
+  });
+}
+
+// ---------- Sound effect upload + list UI ----------
+async function onSfxUpload(e) {
+  const files = [...e.target.files];
+  for (const f of files) {
+    const name = f.name.replace(/\.[^.]+$/, ''); // strip extension
+    if (!name) continue;
+    await saveSfx(name, f);
+  }
+  e.target.value = '';
+  renderSfxList();
+}
+
+async function renderSfxList() {
+  const names = await listSfx();
+  document.getElementById('sfxCount').textContent = names.length + ' 個';
+  const el = document.getElementById('sfxList');
+  if (names.length === 0) {
+    el.innerHTML = '<div style="color:#666;font-size:.85em;padding:8px">尚無音效，按上面「📤 上傳音效」加入</div>';
+    return;
+  }
+  el.innerHTML = names.map(n => `
+    <span class="sfx-chip">
+      <span class="play" onclick="previewSfx('${escapeAttr(n)}')" title="試聽">▶</span>
+      <span onclick="insertSfx('${escapeAttr(n)}')" title="插入到游標">${escapeHTML(n)}</span>
+      <span class="x" onclick="onDeleteSfx('${escapeAttr(n)}')" title="刪除">✕</span>
+    </span>
+  `).join('');
+}
+
+function escapeAttr(s) {
+  return String(s).replace(/['"\\]/g, c => '\\' + c);
+}
+
+async function previewSfx(name) {
+  const blob = await getSfx(name);
+  if (!blob) return;
+  const url = URL.createObjectURL(blob);
+  const audio = new Audio(url);
+  audio.play().catch(() => {});
+}
+
+async function onDeleteSfx(name) {
+  if (!confirm(`刪除音效「${name}」？`)) return;
+  await deleteSfx(name);
+  renderSfxList();
+}
+
+function insertSfx(name) {
+  const ta = document.getElementById('recordText');
+  const insert = `[音效:${name}]`;
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  ta.value = ta.value.slice(0, start) + insert + ta.value.slice(end);
+  ta.focus();
+  ta.selectionStart = ta.selectionEnd = start + insert.length;
+  onRecordTextChange();
+}
+
+async function insertSfxAtCursor() {
+  const names = await listSfx();
+  if (names.length === 0) {
+    alert('尚無音效，請先上傳');
+    return;
+  }
+  // Simple picker prompt — could be a fancier modal later.
+  const pick = prompt(
+    '輸入要插入的音效名稱：\n\n可用音效：\n' + names.join('、'),
+    names[0]
+  );
+  if (!pick) return;
+  if (!names.includes(pick)) {
+    if (!confirm(`音效「${pick}」不存在，仍要插入標記嗎？\n（之後上傳同名音效就會生效）`)) return;
+  }
+  insertSfx(pick);
+}
+
+// ---------- Record text persistence ----------
+function onRecordTextChange() {
+  const t = document.getElementById('recordText').value;
+  document.getElementById('recordCharCount').textContent = [...t].length + ' 字';
+  localStorage.setItem('tts_record_text', t);
+}
+
+function clearRecordText() {
+  if (!confirm('清空所有文字？（音效不會被刪除）')) return;
+  document.getElementById('recordText').value = '';
+  onRecordTextChange();
+}
+
+// ---------- Build story: TTS + SFX → single audio ----------
+function parseStoryTokens(text) {
+  const tokens = [];
+  const re = /\[音效:([^\]]+)\]/g;
+  let lastIdx = 0;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > lastIdx) {
+      const t = text.slice(lastIdx, m.index).trim();
+      if (t) tokens.push({ type: 'text', value: t });
+    }
+    tokens.push({ type: 'sfx', value: m[1].trim() });
+    lastIdx = m.index + m[0].length;
+  }
+  if (lastIdx < text.length) {
+    const t = text.slice(lastIdx).trim();
+    if (t) tokens.push({ type: 'text', value: t });
+  }
+  return tokens;
+}
+
+function concatAudioBuffers(ctx, buffers) {
+  if (buffers.length === 0) return null;
+  const channels = Math.max(...buffers.map(b => b.numberOfChannels));
+  const sampleRate = buffers[0].sampleRate;
+  const totalLen = buffers.reduce((s, b) => s + b.length, 0);
+  const out = ctx.createBuffer(channels, totalLen, sampleRate);
+  let offset = 0;
+  for (const b of buffers) {
+    for (let ch = 0; ch < channels; ch++) {
+      const dst = out.getChannelData(ch);
+      // If source has fewer channels, mirror the first channel
+      const srcCh = ch < b.numberOfChannels ? ch : 0;
+      const src = b.getChannelData(srcCh);
+      // Resample naively if rates differ (rare since browsers normalize)
+      if (b.sampleRate === sampleRate) {
+        dst.set(src, offset);
+      } else {
+        const ratio = b.sampleRate / sampleRate;
+        for (let i = 0; i < b.length; i++) {
+          const j = Math.floor(i * ratio);
+          dst[offset + i] = src[j] || 0;
+        }
+      }
+    }
+    offset += b.length;
+  }
+  return out;
+}
+
+// Encode AudioBuffer to WAV blob for inline playback via Audio element.
+function audioBufferToWav(buffer) {
+  const numCh = buffer.numberOfChannels;
+  const sampleRate = buffer.sampleRate;
+  const numSamples = buffer.length;
+  const bytesPerSample = 2;
+  const blockAlign = numCh * bytesPerSample;
+  const byteRate = sampleRate * blockAlign;
+  const dataSize = numSamples * blockAlign;
+  const buf = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buf);
+  const writeStr = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, numCh, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, 16, true);
+  writeStr(36, 'data');
+  view.setUint32(40, dataSize, true);
+  let off = 44;
+  // Interleaved 16-bit PCM
+  const channels = [];
+  for (let ch = 0; ch < numCh; ch++) channels.push(buffer.getChannelData(ch));
+  for (let i = 0; i < numSamples; i++) {
+    for (let ch = 0; ch < numCh; ch++) {
+      let s = channels[ch][i];
+      s = Math.max(-1, Math.min(1, s));
+      view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+      off += 2;
+    }
+  }
+  return new Blob([buf], { type: 'audio/wav' });
+}
+
+async function buildAndPlay() {
+  const text = document.getElementById('recordText').value.trim();
+  if (!text) { showRecordStatus('error', '請輸入文字'); return; }
+  if (!localStorage.getItem('tts_api_key')) { showRecordStatus('error', '請先設 API key'); return; }
+  const tokens = parseStoryTokens(text);
+  if (tokens.length === 0) { showRecordStatus('error', '文字解析後是空的'); return; }
+
+  const btn = document.getElementById('buildBtn');
+  btn.disabled = true;
+  btn.textContent = '製作中...';
+  const audioEl = document.getElementById('recordAudio');
+  audioEl.style.display = 'none';
+
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const buffers = [];
+  let ttsChars = 0;
+  let missingSfx = [];
+  try {
+    for (let i = 0; i < tokens.length; i++) {
+      const tk = tokens[i];
+      showRecordStatus('info', `處理 ${i + 1}/${tokens.length}：${tk.type === 'text' ? 'TTS' : '音效'} ${tk.value.slice(0, 20)}`);
+      if (tk.type === 'text') {
+        const blob = await synthesize(tk.value);
+        ttsChars += [...tk.value].length;
+        const ab = await blob.arrayBuffer();
+        const buf = await ctx.decodeAudioData(ab);
+        buffers.push(buf);
+      } else {
+        const sfxBlob = await getSfx(tk.value);
+        if (!sfxBlob) {
+          missingSfx.push(tk.value);
+          continue;
+        }
+        const ab = await sfxBlob.arrayBuffer();
+        try {
+          const buf = await ctx.decodeAudioData(ab.slice(0));
+          buffers.push(buf);
+        } catch (e) {
+          missingSfx.push(`${tk.value}（解碼失敗）`);
+        }
+      }
+    }
+    if (buffers.length === 0) { showRecordStatus('error', '無內容可播放'); return; }
+    const combined = concatAudioBuffers(ctx, buffers);
+    const wavBlob = audioBufferToWav(combined);
+    if (ttsChars > 0) addMonthlyUsed(ttsChars);
+    const url = URL.createObjectURL(wavBlob);
+    audioEl.src = url;
+    audioEl.style.display = 'block';
+    try { await audioEl.play(); } catch (e) {}
+    const warn = missingSfx.length > 0 ? `（缺音效：${missingSfx.join('、')}）` : '';
+    showRecordStatus('success', `✓ 完成，共 ${tokens.length} 段，TTS 用了 ${ttsChars} 字 ${warn}`);
+  } catch (e) {
+    showRecordStatus('error', '失敗：' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '▶ 製作試聽';
+  }
+}
+
+function showRecordStatus(kind, msg) {
+  const el = document.getElementById('recordStatus');
+  el.className = 'status show ' + kind;
+  el.textContent = msg;
+}
+
+// ---------- Init recording tab ----------
+(function initRecord() {
+  const t = localStorage.getItem('tts_record_text') || '';
+  document.getElementById('recordText').value = t;
+  onRecordTextChange();
+  renderSfxList();
+  // Restore last-active tab
+  const active = localStorage.getItem('tts_active_tab') || 'batch';
+  if (active === 'record') switchTab('record');
+})();
 </script>
 
 </body>
