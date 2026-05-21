@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>龍胤立志傳 — 存檔修改器</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a1a;color:#e0e0e0;min-height:100vh;padding-bottom:60px}
+.header{background:linear-gradient(135deg,#0f0c29,#302b63);padding:18px 24px;border-bottom:1px solid rgba(255,255,255,0.08)}
+.header h1{font-size:1.3em;background:linear-gradient(90deg,#f59e0b,#fbbf24);-webkit-background-clip:text;-webkit-text-fill-color:transparent;display:inline-block}
+.header .sub{font-size:.8em;color:#888;margin-top:4px}
+.content{max-width:1000px;margin:0 auto;padding:18px}
+.section{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:16px;margin-bottom:14px}
+.section h2{font-size:.95em;color:#fbbf24;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.section h2 .badge{background:rgba(251,191,36,0.15);color:#fbbf24;padding:2px 8px;border-radius:10px;font-size:.75em;font-weight:500}
+label{display:block;font-size:.8em;color:#888;margin-bottom:4px}
+input[type=text],input[type=number]{width:100%;padding:7px 10px;border:1px solid rgba(255,255,255,0.15);border-radius:6px;background:rgba(255,255,255,0.06);color:#fff;font-size:.9em;font-family:inherit}
+input:focus{outline:none;border-color:#fbbf24;background:rgba(255,255,255,0.09)}
+.btn{padding:8px 16px;border:none;border-radius:7px;font-size:.88em;font-weight:600;cursor:pointer;transition:all .15s}
+.btn-primary{background:linear-gradient(135deg,#f59e0b,#fbbf24);color:#000}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(251,191,36,0.3)}
+.btn-secondary{background:rgba(255,255,255,0.08);color:#ddd;border:1px solid rgba(255,255,255,0.15)}
+.btn-secondary:hover{background:rgba(255,255,255,0.14)}
+.btn-danger{background:transparent;border:1px solid #f87171;color:#f87171;font-size:.78em;padding:4px 10px}
+.btn-danger:hover{background:#f87171;color:#fff}
+.btn-success{background:linear-gradient(135deg,#10b981,#34d399);color:#000}
+.btn-success:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(52,211,153,0.3)}
+.drop-zone{border:2px dashed rgba(251,191,36,0.4);border-radius:12px;padding:40px;text-align:center;background:rgba(251,191,36,0.04);cursor:pointer;transition:all .2s}
+.drop-zone:hover,.drop-zone.dragover{background:rgba(251,191,36,0.1);border-color:#fbbf24}
+.drop-zone p{color:#fbbf24;font-size:1em;margin-bottom:6px}
+.drop-zone .hint{color:#888;font-size:.85em}
+.tab-nav{display:flex;gap:4px;margin-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.08);overflow-x:auto}
+.tab-nav button{padding:9px 14px;background:transparent;border:none;color:#888;cursor:pointer;font-size:.88em;font-weight:600;border-bottom:2px solid transparent;white-space:nowrap}
+.tab-nav button.active{color:#fbbf24;border-bottom-color:#fbbf24}
+.tab-nav button:hover{color:#fbbf24}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.field{}
+.field-inline{display:flex;gap:8px;align-items:center}
+.field-inline label{flex:0 0 auto;margin:0;min-width:80px}
+.field-inline input{flex:1}
+.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.list-item{display:flex;gap:8px;align-items:center;padding:8px 10px;border:1px solid rgba(255,255,255,0.08);border-radius:6px;background:rgba(255,255,255,0.03);margin-bottom:6px;flex-wrap:wrap}
+.list-item .name{font-weight:600;font-size:.9em;flex:1;min-width:120px}
+.list-item .meta{color:#888;font-size:.78em}
+.list-item input[type=number]{width:80px}
+.status{margin-top:10px;padding:10px 14px;border-radius:8px;font-size:.85em;display:none}
+.status.show{display:block}
+.status.info{background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);color:#a5b4fc}
+.status.success{background:rgba(52,211,153,0.15);border:1px solid rgba(52,211,153,0.3);color:#34d399}
+.status.error{background:rgba(248,113,113,0.15);border:1px solid rgba(248,113,113,0.3);color:#fca5a5}
+.status.warn{background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.3);color:#fcd34d}
+.help{font-size:.78em;color:#666;margin-top:6px;line-height:1.5}
+.scrollable{max-height:420px;overflow-y:auto;padding-right:4px}
+.summary-line{display:flex;gap:20px;flex-wrap:wrap;margin-bottom:10px;font-size:.85em}
+.summary-line span{color:#aaa}
+.summary-line strong{color:#fbbf24}
+.warn-box{background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.3);border-radius:8px;padding:10px 14px;margin-bottom:14px;color:#fca5a5;font-size:.88em}
+.warn-box strong{color:#f87171}
+@media (max-width:600px){
+  .grid-3{grid-template-columns:1fr 1fr}
+  .list-item{flex-wrap:wrap}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>⚔️ 龍胤立志傳 存檔修改器</h1>
+  <div class="sub">本地檔案處理，不上傳任何資料</div>
+</div>
+
+<div class="content">
+
+  <div class="warn-box">
+    <strong>⚠️ 改檔前務必備份！</strong><br>
+    把整個 <code>LongYinLiZhiZhuan_Data/Save</code> 資料夾複製一份放桌面。改壞了存檔就毀了，沒辦法救。
+  </div>
+
+  <!-- File loader -->
+  <div class="section" id="loaderSec">
+    <h2>📁 載入存檔</h2>
+    <div class="drop-zone" id="dropZone">
+      <p>把 Hero 檔案拖進來，或點此選檔</p>
+      <p class="hint">存檔位置：<code>[遊戲安裝目錄]\LongYinLiZhiZhuan_Data\Save\SaveSlot1\Hero</code></p>
+      <input type="file" id="fileInput" style="display:none">
+    </div>
+    <div class="status" id="loadStatus"></div>
+  </div>
+
+  <!-- Editor (shown after file loaded) -->
+  <div id="editor" style="display:none">
+
+    <div class="section">
+      <h2>👤 玩家資訊 <span class="badge" id="playerBadge"></span></h2>
+      <div class="summary-line" id="playerSummary"></div>
+      <button class="btn btn-success" onclick="downloadModified()">💾 下載修改後的 Hero 檔</button>
+      <span style="color:#666;font-size:.82em;margin-left:10px">下載後覆蓋原 Hero 檔，重開遊戲讀檔即可</span>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tab-nav">
+      <button class="active" data-tab="basic" onclick="switchTab('basic')">基本</button>
+      <button data-tab="attr" onclick="switchTab('attr')">屬性</button>
+      <button data-tab="fight" onclick="switchTab('fight')">戰鬥技能</button>
+      <button data-tab="living" onclick="switchTab('living')">生活技能</button>
+      <button data-tab="talent" onclick="switchTab('talent')">天賦</button>
+      <button data-tab="kungfu" onclick="switchTab('kungfu')">武功</button>
+      <button data-tab="items" onclick="switchTab('items')">物品</button>
+      <button data-tab="favor" onclick="switchTab('favor')">NPC 好感度</button>
+    </div>
+
+    <!-- Basic -->
+    <div class="tab-panel active" id="tab-basic">
+      <div class="section">
+        <h2>💰 金錢 / 收入</h2>
+        <div class="grid">
+          <div class="field"><label>金錢</label><input type="number" id="f-money" oninput="setField('money', this.value, ['itemListData','money'])"></div>
+          <div class="field"><label>月薪</label><input type="number" id="f-salary" oninput="setField('salary', this.value)"></div>
+          <div class="field"><label>人口</label><input type="number" id="f-population" oninput="setField('population', this.value)"></div>
+          <div class="field"><label>負重上限</label><input type="number" id="f-maxWeight" oninput="setField('maxWeight', this.value, ['itemListData','maxWeight'])"></div>
+        </div>
+        <div class="toolbar" style="margin-top:10px">
+          <button class="btn btn-secondary" onclick="quickFill('money', 99999999)">設 99,999,999</button>
+          <button class="btn btn-secondary" onclick="quickFill('money', 999999)">設 999,999</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>🏆 聲望 / 等級</h2>
+        <div class="grid">
+          <div class="field"><label>聲望 (fame)</label><input type="number" id="f-fame" oninput="setField('fame', this.value)"></div>
+          <div class="field"><label>惡名 (badFame)</label><input type="number" id="f-badFame" oninput="setField('badFame', this.value)"></div>
+          <div class="field"><label>朝廷等級 (governLv)</label><input type="number" id="f-governLv" oninput="setField('governLv', this.value)"></div>
+          <div class="field"><label>門派等級 (heroForceLv)</label><input type="number" id="f-heroForceLv" oninput="setField('heroForceLv', this.value)"></div>
+          <div class="field"><label>榮譽等級 (hornorLv)</label><input type="number" id="f-hornorLv" oninput="setField('hornorLv', this.value)"></div>
+          <div class="field"><label>武學境界 (heroStrengthLv)</label><input type="number" id="f-heroStrengthLv" oninput="setField('heroStrengthLv', this.value)"></div>
+        </div>
+        <div class="toolbar" style="margin-top:10px">
+          <button class="btn btn-secondary" onclick="quickFill('fame', 9999)">聲望滿 (9999)</button>
+          <button class="btn btn-secondary" onclick="quickFill('badFame', 0)">惡名歸 0</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>🎖️ 貢獻</h2>
+        <div class="grid">
+          <div class="field"><label>本月貢獻 (thisMonthContribution)</label><input type="number" id="f-thisMonthContribution" oninput="setField('thisMonthContribution', this.value)"></div>
+          <div class="field"><label>本年貢獻 (thisYearContribution)</label><input type="number" id="f-thisYearContribution" oninput="setField('thisYearContribution', this.value)"></div>
+          <div class="field"><label>門派總貢獻 (forceContribution)</label><input type="number" id="f-forceContribution" oninput="setField('forceContribution', this.value)"></div>
+          <div class="field"><label>朝廷貢獻 (governContribution)</label><input type="number" id="f-governContribution" oninput="setField('governContribution', this.value)"></div>
+        </div>
+        <div class="toolbar" style="margin-top:10px">
+          <button class="btn btn-secondary" onclick="quickFill('forceContribution', 99999)">門派貢獻滿</button>
+          <button class="btn btn-secondary" onclick="quickFill('governContribution', 99999)">朝廷貢獻滿</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>❤️ HP / 內力</h2>
+        <div class="grid">
+          <div class="field"><label>HP</label><input type="number" id="f-hp" oninput="setField('hp', this.value)"></div>
+          <div class="field"><label>最大 HP</label><input type="number" id="f-maxhp" oninput="setField('maxhp', this.value)"></div>
+          <div class="field"><label>內力 mana</label><input type="number" id="f-mana" oninput="setField('mana', this.value)"></div>
+          <div class="field"><label>最大內力</label><input type="number" id="f-maxMana" oninput="setField('maxMana', this.value)"></div>
+          <div class="field"><label>體力 power</label><input type="number" id="f-power" oninput="setField('power', this.value)"></div>
+          <div class="field"><label>最大體力</label><input type="number" id="f-maxPower" oninput="setField('maxPower', this.value)"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Attributes -->
+    <div class="tab-panel" id="tab-attr">
+      <div class="section">
+        <h2>📊 六大屬性 <span class="badge">同時更新 base / total</span></h2>
+        <div id="attrFields"></div>
+        <div class="toolbar" style="margin-top:10px">
+          <button class="btn btn-secondary" onclick="quickFillArray('baseAttri', 120)">全部設 120</button>
+          <button class="btn btn-secondary" onclick="quickFillArray('baseAttri', 150)">全部設 150 (破上限)</button>
+          <button class="btn btn-secondary" onclick="quickFillArray('maxAttri', 200)">屬性上限設 200</button>
+        </div>
+        <div class="help">屬性順序：[體質, 力量, 敏捷, 內息, 悟性, 機敏]（依遊戲畫面為準）。修改 baseAttri 會同步更新 totalAttri，避免顯示不一致。</div>
+      </div>
+    </div>
+
+    <!-- Fight skills -->
+    <div class="tab-panel" id="tab-fight">
+      <div class="section">
+        <h2>⚔️ 戰鬥技能（9 項）</h2>
+        <div id="fightFields"></div>
+        <div class="toolbar" style="margin-top:10px">
+          <button class="btn btn-secondary" onclick="quickFillArray('baseFightSkill', 120)">全部設 120</button>
+          <button class="btn btn-secondary" onclick="quickFillArray('maxFightSkill', 120)">上限全 120</button>
+          <button class="btn btn-secondary" onclick="quickFillArray('totalFightSkill', 999)">總值全 999</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Living skills -->
+    <div class="tab-panel" id="tab-living">
+      <div class="section">
+        <h2>🛠️ 生活技能（9 項）</h2>
+        <div id="livingFields"></div>
+        <div class="toolbar" style="margin-top:10px">
+          <button class="btn btn-secondary" onclick="quickFillArray('baseLivingSkill', 100)">全部設 100</button>
+          <button class="btn btn-secondary" onclick="quickFillArray('maxLivingSkill', 100)">上限全 100</button>
+          <button class="btn btn-secondary" onclick="quickFillArray('totalLivingSkill', 200)">總值全 200</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Talents -->
+    <div class="tab-panel" id="tab-talent">
+      <div class="section">
+        <h2>✨ 天賦點數</h2>
+        <div class="grid">
+          <div class="field"><label>天賦點 (heroTagPoint)</label><input type="number" id="f-heroTagPoint" oninput="setField('heroTagPoint', this.value)"></div>
+        </div>
+        <div class="toolbar" style="margin-top:10px">
+          <button class="btn btn-secondary" onclick="quickFill('heroTagPoint', 9999)">設 9999</button>
+          <button class="btn btn-secondary" onclick="quickFill('heroTagPoint', 999999)">設 999,999</button>
+        </div>
+        <div class="help">heroTagPoint 是還沒分配的天賦點數。設超大值 = 可以隨意加天賦不限制。</div>
+      </div>
+
+      <div class="section">
+        <h2>🌟 已有天賦 <span class="badge" id="talentBadge">0</span></h2>
+        <div class="toolbar">
+          <input type="number" id="addTalentId" placeholder="天賦 ID (0-378)" style="max-width:160px">
+          <button class="btn btn-primary" onclick="addTalent()">新增天賦</button>
+          <button class="btn btn-secondary" onclick="makeAllTalentsPermanent()">所有天賦設為永久</button>
+        </div>
+        <div id="talentList" class="scrollable"></div>
+        <div class="help">天賦 ID 範圍 0-378（本存檔出現過 335 種）。leftTime 是剩餘時間（秒），設極大值 = 永久不會消失。</div>
+      </div>
+    </div>
+
+    <!-- Kungfu -->
+    <div class="tab-panel" id="tab-kungfu">
+      <div class="section">
+        <h2>🥋 武功列表 <span class="badge" id="kungfuBadge">0</span></h2>
+        <div class="toolbar">
+          <input type="number" id="addKungfuId" placeholder="武功 ID (0-1049)" style="max-width:160px">
+          <input type="number" id="addKungfuLv" placeholder="等級 (預設 10)" value="10" style="max-width:140px">
+          <button class="btn btn-primary" onclick="addKungfu()">新增武功</button>
+          <button class="btn btn-secondary" onclick="maxAllKungfu()">所有武功升到 lv 10</button>
+        </div>
+        <div id="kungfuList" class="scrollable"></div>
+        <div class="help">武功 ID 範圍 0-1049（本存檔出現過 1045 種）。已知的武功 ID 可以在「物品 / 武功秘籍」裡看到對應名稱。</div>
+      </div>
+    </div>
+
+    <!-- Items -->
+    <div class="tab-panel" id="tab-items">
+      <div class="section">
+        <h2>🎒 物品 <span class="badge" id="itemsBadge">0</span></h2>
+        <div class="toolbar">
+          <input type="text" id="itemFilter" placeholder="搜尋物品名稱..." oninput="renderItems()" style="max-width:200px">
+          <button class="btn btn-secondary" onclick="duplicateAllItems()">全部物品數量 +1 個複本</button>
+          <button class="btn btn-secondary" onclick="cleanZeroItems()">清掉重複品</button>
+        </div>
+        <div id="itemList" class="scrollable"></div>
+        <div class="help">物品可以單獨修改 value（價值）、weight（重量）、itemLv、rareLv。裝備品還有 enhanceLv（精煉等級）可改。</div>
+      </div>
+    </div>
+
+    <!-- NPC favor -->
+    <div class="tab-panel" id="tab-favor">
+      <div class="section">
+        <h2>❤️ NPC 好感度 <span class="badge" id="favorBadge">0</span></h2>
+        <div class="toolbar">
+          <input type="text" id="favorFilter" placeholder="搜尋名字..." oninput="renderFavor()" style="max-width:200px">
+          <button class="btn btn-secondary" onclick="setAllFavor(100)">所有可見 NPC 好感度 = 100</button>
+          <button class="btn btn-secondary" onclick="setAllFavor(999)">所有可見 NPC 好感度 = 999</button>
+        </div>
+        <div id="favorList" class="scrollable"></div>
+        <div class="help">favor 100 通常是最高友好。-999999 是「自己對自己」或不適用。搜尋會過濾顯示，套用按鈕只影響目前可見的 NPC。</div>
+      </div>
+    </div>
+
+  </div><!-- /editor -->
+
+</div>
+
+<script>
+let heroData = null;       // Full parsed JSON array
+let player = null;         // Reference to player record (heroID 0)
+let originalFileName = 'Hero';
+
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+['dragenter','dragover'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.add('dragover'); }));
+['dragleave','drop'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.remove('dragover'); }));
+dropZone.addEventListener('drop', ev => { if (ev.dataTransfer.files[0]) loadFile(ev.dataTransfer.files[0]); });
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', ev => { if (ev.target.files[0]) loadFile(ev.target.files[0]); });
+
+function showLoadStatus(kind, msg) {
+  const el = document.getElementById('loadStatus');
+  el.className = 'status show ' + kind;
+  el.textContent = msg;
+}
+
+async function loadFile(file) {
+  originalFileName = file.name;
+  showLoadStatus('info', `讀取 ${file.name} (${(file.size/1024/1024).toFixed(1)} MB)...`);
+  try {
+    const text = await file.text();
+    heroData = JSON.parse(text);
+    if (!Array.isArray(heroData)) throw new Error('檔案不是陣列格式（不是 Hero 檔？）');
+    // Find player by heroID 0
+    player = heroData.find(h => h && h.heroID === 0);
+    if (!player) throw new Error('找不到玩家（heroID 0）');
+    showLoadStatus('success', `✓ 載入成功：${heroData.length} 個角色`);
+    document.getElementById('editor').style.display = 'block';
+    renderPlayer();
+  } catch (e) {
+    showLoadStatus('error', '解析失敗：' + e.message);
+    heroData = null;
+    player = null;
+    document.getElementById('editor').style.display = 'none';
+  }
+}
+
+function renderPlayer() {
+  document.getElementById('playerBadge').textContent = `${player.heroName} · heroID ${player.heroID}`;
+  const summary = document.getElementById('playerSummary');
+  summary.innerHTML = `
+    <span>💰 <strong>${(player.itemListData.money||0).toLocaleString()}</strong></span>
+    <span>🏆 聲望 <strong>${player.fame}</strong></span>
+    <span>⚔️ 戰力 <strong>${player.fightScore?.toFixed(0) || '?'}</strong></span>
+    <span>📊 朝廷 Lv <strong>${player.governLv}</strong></span>
+    <span>🏯 門派 Lv <strong>${player.heroForceLv}</strong></span>
+    <span>✨ 天賦點 <strong>${player.heroTagPoint}</strong></span>
+    <span>🌟 天賦數 <strong>${(player.heroTagData||[]).length}</strong></span>
+    <span>🥋 武功數 <strong>${(player.kungfuSkills||[]).length}</strong></span>
+  `;
+  // Fill all basic fields
+  document.getElementById('f-money').value = player.itemListData.money || 0;
+  document.getElementById('f-salary').value = player.salary || 0;
+  document.getElementById('f-population').value = player.population || 0;
+  document.getElementById('f-maxWeight').value = player.itemListData.maxWeight || 0;
+  document.getElementById('f-fame').value = player.fame;
+  document.getElementById('f-badFame').value = player.badFame;
+  document.getElementById('f-governLv').value = player.governLv;
+  document.getElementById('f-heroForceLv').value = player.heroForceLv;
+  document.getElementById('f-hornorLv').value = player.hornorLv;
+  document.getElementById('f-heroStrengthLv').value = player.heroStrengthLv;
+  document.getElementById('f-thisMonthContribution').value = player.thisMonthContribution;
+  document.getElementById('f-thisYearContribution').value = player.thisYearContribution;
+  document.getElementById('f-forceContribution').value = player.forceContribution;
+  document.getElementById('f-governContribution').value = player.governContribution;
+  document.getElementById('f-hp').value = player.hp;
+  document.getElementById('f-maxhp').value = player.maxhp;
+  document.getElementById('f-mana').value = player.mana;
+  document.getElementById('f-maxMana').value = player.maxMana;
+  document.getElementById('f-power').value = player.power;
+  document.getElementById('f-maxPower').value = player.maxPower;
+  document.getElementById('f-heroTagPoint').value = player.heroTagPoint;
+
+  renderArrayFields('attrFields', player.baseAttri, player.maxAttri, player.totalAttri, 'baseAttri',
+    ['體質','力量','敏捷','內息','悟性','機敏']);
+  renderArrayFields('fightFields', player.baseFightSkill, player.maxFightSkill, player.totalFightSkill, 'baseFightSkill',
+    ['拳','劍','刀','棍','槍','暗器','輕功','投擲','格擋']);
+  renderArrayFields('livingFields', player.baseLivingSkill, player.maxLivingSkill, player.totalLivingSkill, 'baseLivingSkill',
+    ['醫','毒','烹飪','鑄造','繪畫','音樂','書法','圍棋','種植']);
+
+  renderTalents();
+  renderKungfu();
+  renderItems();
+  renderFavor();
+}
+
+function renderArrayFields(containerId, baseArr, maxArr, totalArr, baseKey, labels) {
+  const el = document.getElementById(containerId);
+  let html = '<div class="grid-3"><div></div><div style="text-align:center;color:#666;font-size:.78em">base</div><div style="text-align:center;color:#666;font-size:.78em">max / total</div></div>';
+  baseArr.forEach((v, i) => {
+    html += `<div class="grid-3" style="margin-bottom:6px">
+      <div style="display:flex;align-items:center;font-size:.85em;color:#aaa">${labels[i] || ('#' + i)}</div>
+      <div><input type="number" step="0.01" value="${v}" oninput="setArrayValue('${baseKey}', ${i}, this.value)"></div>
+      <div style="display:flex;gap:4px">
+        <input type="number" step="0.01" value="${maxArr[i]}" oninput="setArrayValue('${baseKey.replace('base','max')}', ${i}, this.value)" placeholder="max">
+        <input type="number" step="0.01" value="${totalArr[i]}" oninput="setArrayValue('${baseKey.replace('base','total')}', ${i}, this.value)" placeholder="total">
+      </div>
+    </div>`;
+  });
+  el.innerHTML = html;
+}
+
+function setField(key, val, path) {
+  if (!player) return;
+  let target = player;
+  if (path) {
+    for (let i = 0; i < path.length - 1; i++) target = target[path[i]];
+    target[path[path.length - 1]] = Number(val);
+  } else {
+    player[key] = Number(val);
+  }
+  updatePlayerSummary();
+}
+
+function setArrayValue(key, idx, val) {
+  if (!player || !player[key]) return;
+  player[key][idx] = Number(val);
+  updatePlayerSummary();
+}
+
+function quickFill(key, val) {
+  if (!player) return;
+  if (key === 'money') {
+    player.itemListData.money = val;
+    document.getElementById('f-money').value = val;
+  } else {
+    player[key] = val;
+    const el = document.getElementById('f-' + key);
+    if (el) el.value = val;
+  }
+  updatePlayerSummary();
+}
+
+function quickFillArray(key, val) {
+  if (!player || !player[key]) return;
+  for (let i = 0; i < player[key].length; i++) player[key][i] = val;
+  renderPlayer();
+}
+
+function updatePlayerSummary() {
+  if (!player) return;
+  const summary = document.getElementById('playerSummary');
+  if (summary) renderPlayer();  // Re-render summary (cheap)
+}
+
+// ===== Tabs =====
+function switchTab(name) {
+  document.querySelectorAll('.tab-nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + name));
+}
+
+// ===== Talents =====
+function renderTalents() {
+  const list = player.heroTagData || [];
+  document.getElementById('talentBadge').textContent = list.length + ' 個';
+  const el = document.getElementById('talentList');
+  if (list.length === 0) {
+    el.innerHTML = '<div style="color:#666;padding:10px">尚無天賦</div>';
+    return;
+  }
+  el.innerHTML = list.map((t, i) => `
+    <div class="list-item">
+      <span class="name">天賦 ID ${t.tagID}</span>
+      <span class="meta">leftTime:</span>
+      <input type="number" value="${t.leftTime}" onchange="updateTalentLeftTime(${i}, this.value)">
+      <button class="btn-danger" onclick="removeTalent(${i})">移除</button>
+    </div>
+  `).join('');
+}
+
+function addTalent() {
+  const id = parseInt(document.getElementById('addTalentId').value);
+  if (isNaN(id)) { alert('輸入有效的天賦 ID'); return; }
+  if (!player.heroTagData) player.heroTagData = [];
+  if (player.heroTagData.find(t => t.tagID === id)) { alert('已有此天賦'); return; }
+  player.heroTagData.push({ tagID: id, leftTime: 99999999.0, sourceHero: null });
+  document.getElementById('addTalentId').value = '';
+  renderTalents();
+  renderPlayer();
+}
+
+function removeTalent(i) {
+  player.heroTagData.splice(i, 1);
+  renderTalents();
+  renderPlayer();
+}
+
+function updateTalentLeftTime(i, v) {
+  player.heroTagData[i].leftTime = Number(v);
+}
+
+function makeAllTalentsPermanent() {
+  if (!player.heroTagData) return;
+  for (const t of player.heroTagData) t.leftTime = 99999999.0;
+  renderTalents();
+}
+
+// ===== Kungfu =====
+function renderKungfu() {
+  const list = player.kungfuSkills || [];
+  document.getElementById('kungfuBadge').textContent = list.length + ' 個';
+  const el = document.getElementById('kungfuList');
+  if (list.length === 0) {
+    el.innerHTML = '<div style="color:#666;padding:10px">尚無武功</div>';
+    return;
+  }
+  el.innerHTML = list.map((k, i) => `
+    <div class="list-item">
+      <span class="name">武功 ID ${k.skillID}</span>
+      <span class="meta">${k.equiped ? '🟢 已裝備' : ''}</span>
+      <span class="meta">Lv:</span>
+      <input type="number" value="${k.lv}" min="0" max="10" onchange="updateKungfuLv(${i}, this.value)">
+      <button class="btn-danger" onclick="removeKungfu(${i})">移除</button>
+    </div>
+  `).join('');
+}
+
+function addKungfu() {
+  const id = parseInt(document.getElementById('addKungfuId').value);
+  const lv = parseInt(document.getElementById('addKungfuLv').value) || 10;
+  if (isNaN(id)) { alert('輸入有效的武功 ID'); return; }
+  if (!player.kungfuSkills) player.kungfuSkills = [];
+  if (player.kungfuSkills.find(k => k.skillID === id)) { alert('已有此武功'); return; }
+  player.kungfuSkills.push({
+    skillID: id, lv: lv, fightExp: 0.0, bookExp: 0.0, equiped: false, isNew: true,
+    belongHeroID: 0,
+    speEquipData: { heroSpeAddData: {} },
+    equipUseSpeAddValue: 0.0,
+    speUseData: { heroSpeAddData: {} },
+    damageUseSpeAddValue: 0.0,
+    selfUseSpeAddValue: 0.0,
+    enemyUseSpeAddValue: 0.0,
+    extraAddData: { heroSpeAddData: {} },
+    maxManaChanged: false
+  });
+  document.getElementById('addKungfuId').value = '';
+  renderKungfu();
+  renderPlayer();
+}
+
+function removeKungfu(i) {
+  player.kungfuSkills.splice(i, 1);
+  renderKungfu();
+  renderPlayer();
+}
+
+function updateKungfuLv(i, v) {
+  player.kungfuSkills[i].lv = Math.max(0, Math.min(10, Number(v)));
+}
+
+function maxAllKungfu() {
+  if (!player.kungfuSkills) return;
+  for (const k of player.kungfuSkills) k.lv = 10;
+  renderKungfu();
+}
+
+// ===== Items =====
+function renderItems() {
+  const all = (player.itemListData || {}).allItem || [];
+  document.getElementById('itemsBadge').textContent = all.length + ' 件';
+  const q = (document.getElementById('itemFilter').value || '').toLowerCase();
+  const filtered = all.map((it, i) => ({ it, i }))
+    .filter(({ it }) => !q || (it.name || '').toLowerCase().includes(q) || String(it.itemID).includes(q));
+  const el = document.getElementById('itemList');
+  if (filtered.length === 0) {
+    el.innerHTML = '<div style="color:#666;padding:10px">沒有匹配的物品</div>';
+    return;
+  }
+  el.innerHTML = filtered.map(({ it, i }) => `
+    <div class="list-item">
+      <span class="name">${it.name || '(無名)'} <span style="color:#666;font-size:.75em">ID ${it.itemID}</span></span>
+      <span class="meta">類型 ${it.type}/${it.subType}</span>
+      <span class="meta">Lv:</span>
+      <input type="number" value="${it.itemLv||0}" onchange="updateItem(${i},'itemLv',this.value)">
+      <span class="meta">稀有:</span>
+      <input type="number" value="${it.rareLv||0}" onchange="updateItem(${i},'rareLv',this.value)">
+      <span class="meta">價值:</span>
+      <input type="number" value="${it.value||0}" onchange="updateItem(${i},'value',this.value)">
+      ${it.equipmentData ? `<span class="meta">精煉:</span><input type="number" value="${it.equipmentData.enhanceLv||0}" onchange="updateItemEnhance(${i},this.value)">` : ''}
+      <button class="btn-danger" onclick="removeItem(${i})">移除</button>
+    </div>
+  `).join('');
+}
+
+function updateItem(idx, field, val) {
+  player.itemListData.allItem[idx][field] = Number(val);
+}
+function updateItemEnhance(idx, val) {
+  player.itemListData.allItem[idx].equipmentData.enhanceLv = Number(val);
+}
+function removeItem(idx) {
+  player.itemListData.allItem.splice(idx, 1);
+  renderItems();
+  renderPlayer();
+}
+function duplicateAllItems() {
+  if (!confirm('複製一份所有物品（會讓物品數量翻倍）？')) return;
+  const arr = player.itemListData.allItem;
+  const copies = arr.map(it => JSON.parse(JSON.stringify(it)));
+  for (const c of copies) {
+    if (c.equipmentData) c.equipmentData.equiped = false;
+  }
+  arr.push(...copies);
+  renderItems();
+  renderPlayer();
+}
+function cleanZeroItems() {
+  const before = player.itemListData.allItem.length;
+  // Group by itemID, keep one per unique combination of itemID + enhanceLv
+  const seen = new Map();
+  const keep = [];
+  for (const it of player.itemListData.allItem) {
+    const key = it.itemID + '_' + (it.equipmentData?.enhanceLv || 0) + '_' + (it.rareLv || 0);
+    if (!seen.has(key)) {
+      seen.set(key, true);
+      keep.push(it);
+    }
+  }
+  player.itemListData.allItem = keep;
+  renderItems();
+  renderPlayer();
+  alert(`物品由 ${before} 件去重至 ${keep.length} 件`);
+}
+
+// ===== NPC Favor =====
+function renderFavor() {
+  const all = (heroData || []).filter(h => h && h.heroID !== 0 && h.heroName && !h.dead);
+  document.getElementById('favorBadge').textContent = all.length + ' 個';
+  const q = (document.getElementById('favorFilter').value || '').toLowerCase();
+  const filtered = all.filter(h => !q || (h.heroName || '').toLowerCase().includes(q));
+  const el = document.getElementById('favorList');
+  // Limit render to 200 for perf; user can search if more needed
+  const show = filtered.slice(0, 200);
+  el.innerHTML = show.map(h => `
+    <div class="list-item">
+      <span class="name">${h.heroName} <span style="color:#666;font-size:.75em">heroID ${h.heroID}</span></span>
+      <span class="meta">favor:</span>
+      <input type="number" value="${h.favor}" onchange="updateFavor(${h.heroID}, this.value)">
+    </div>
+  `).join('');
+  if (filtered.length > 200) {
+    el.innerHTML += `<div style="color:#666;padding:10px;font-size:.85em">顯示前 200 個，共 ${filtered.length} 個。請用搜尋過濾</div>`;
+  }
+}
+
+function updateFavor(heroID, val) {
+  const h = heroData.find(x => x && x.heroID === heroID);
+  if (h) h.favor = Number(val);
+}
+
+function setAllFavor(v) {
+  const q = (document.getElementById('favorFilter').value || '').toLowerCase();
+  let count = 0;
+  for (const h of heroData) {
+    if (!h || h.heroID === 0 || !h.heroName || h.dead) continue;
+    if (q && !(h.heroName || '').toLowerCase().includes(q)) continue;
+    h.favor = v;
+    count++;
+  }
+  renderFavor();
+  alert(`已套用到 ${count} 個 NPC`);
+}
+
+// ===== Download =====
+function downloadModified() {
+  if (!heroData) return;
+  const json = JSON.stringify(heroData);
+  const blob = new Blob([json], { type: 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = originalFileName;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+</script>
+
+</body>
+</html>
