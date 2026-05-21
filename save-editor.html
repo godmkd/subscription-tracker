@@ -111,6 +111,7 @@ input:focus{outline:none;border-color:#fbbf24;background:rgba(255,255,255,0.09)}
       <button data-tab="kungfu" onclick="switchTab('kungfu')">武功</button>
       <button data-tab="items" onclick="switchTab('items')">物品</button>
       <button data-tab="favor" onclick="switchTab('favor')">NPC 好感度</button>
+      <button data-tab="names" onclick="switchTab('names')">📚 對照表</button>
     </div>
 
     <!-- Basic -->
@@ -281,6 +282,55 @@ input:focus{outline:none;border-color:#fbbf24;background:rgba(255,255,255,0.09)}
       </div>
     </div>
 
+    <!-- ID Names dictionary -->
+    <div class="tab-panel" id="tab-names">
+      <div class="section">
+        <h2>📚 ID ↔ 名稱對照表</h2>
+        <div class="help">
+          天賦 / 武功的 ID 沒有名稱嵌在存檔裡。你可以在這裡**手動標註**對應名稱（去遊戲畫面對照），下次就會直接顯示。<br>
+          名稱存在你瀏覽器，可匯出 JSON 跟別人分享；別人也可以匯入你的對照表，慢慢補齊。
+        </div>
+        <div class="toolbar" style="margin-top:10px">
+          <button class="btn btn-secondary" onclick="autoLearnItemNames()">🤖 從目前存檔自動學物品名稱</button>
+          <button class="btn btn-secondary" onclick="exportNames()">📤 匯出對照表 (JSON)</button>
+          <input type="file" id="namesImport" accept=".json" style="display:none" onchange="importNames(event)">
+          <button class="btn btn-secondary" onclick="document.getElementById('namesImport').click()">📥 匯入對照表</button>
+          <button class="btn-danger" onclick="clearAllNames()">清空全部</button>
+        </div>
+        <div class="status" id="namesStatus"></div>
+      </div>
+
+      <div class="section">
+        <h2>✨ 天賦對照 <span class="badge" id="namesTagBadge">0 / 0</span></h2>
+        <div class="toolbar">
+          <input type="text" id="filterTag" placeholder="搜尋 ID 或名稱..." oninput="renderNameTable('tag')" style="max-width:200px">
+          <label style="display:inline-flex;align-items:center;gap:4px;margin:0">
+            <input type="checkbox" id="onlyUnnamedTag" onchange="renderNameTable('tag')"> 只顯示未命名
+          </label>
+        </div>
+        <div id="tagNameList" class="scrollable"></div>
+      </div>
+
+      <div class="section">
+        <h2>🥋 武功對照 <span class="badge" id="namesKungfuBadge">0 / 0</span></h2>
+        <div class="toolbar">
+          <input type="text" id="filterKungfu" placeholder="搜尋 ID 或名稱..." oninput="renderNameTable('kungfu')" style="max-width:200px">
+          <label style="display:inline-flex;align-items:center;gap:4px;margin:0">
+            <input type="checkbox" id="onlyUnnamedKungfu" onchange="renderNameTable('kungfu')"> 只顯示未命名
+          </label>
+        </div>
+        <div id="kungfuNameList" class="scrollable"></div>
+      </div>
+
+      <div class="section">
+        <h2>🎒 物品對照 <span class="badge" id="namesItemBadge">0 / 0</span></h2>
+        <div class="toolbar">
+          <input type="text" id="filterItem" placeholder="搜尋 ID 或名稱..." oninput="renderNameTable('item')" style="max-width:200px">
+        </div>
+        <div id="itemNameList" class="scrollable"></div>
+      </div>
+    </div>
+
   </div><!-- /editor -->
 
 </div>
@@ -289,6 +339,24 @@ input:focus{outline:none;border-color:#fbbf24;background:rgba(255,255,255,0.09)}
 let heroData = null;       // Full parsed JSON array
 let player = null;         // Reference to player record (heroID 0)
 let originalFileName = 'Hero';
+
+// Name dictionary: tag/kungfu/item ID → user-supplied or save-derived names
+let nameDict = { tag: {}, kungfu: {}, item: {} };
+try {
+  const stored = JSON.parse(localStorage.getItem('lylzz_names') || '{}');
+  nameDict = { tag: stored.tag || {}, kungfu: stored.kungfu || {}, item: stored.item || {} };
+} catch (e) {}
+
+function saveNames() {
+  localStorage.setItem('lylzz_names', JSON.stringify(nameDict));
+}
+
+function getName(kind, id) {
+  return nameDict[kind][id] || '';
+}
+
+// Observed IDs from currently-loaded save (for the names tab)
+let observedIDs = { tag: new Set(), kungfu: new Set(), item: new Set() };
 
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
@@ -314,7 +382,23 @@ async function loadFile(file) {
     // Find player by heroID 0
     player = heroData.find(h => h && h.heroID === 0);
     if (!player) throw new Error('找不到玩家（heroID 0）');
-    showLoadStatus('success', `✓ 載入成功：${heroData.length} 個角色`);
+    // Scan all heroes for observed IDs + auto-learn item names from save
+    observedIDs = { tag: new Set(), kungfu: new Set(), item: new Set() };
+    for (const h of heroData) {
+      if (!h) continue;
+      for (const t of (h.heroTagData || [])) if (t && 'tagID' in t) observedIDs.tag.add(t.tagID);
+      for (const k of (h.kungfuSkills || [])) if (k && 'skillID' in k) observedIDs.kungfu.add(k.skillID);
+      const ild = h.itemListData || {};
+      for (const it of (ild.allItem || [])) {
+        if (it && 'itemID' in it) {
+          observedIDs.item.add(it.itemID);
+          // Auto-learn name from save (since items embed names)
+          if (it.name && !nameDict.item[it.itemID]) nameDict.item[it.itemID] = it.name;
+        }
+      }
+    }
+    saveNames();
+    showLoadStatus('success', `✓ 載入成功：${heroData.length} 個角色｜學會 ${Object.keys(nameDict.item).length} 個物品名稱`);
     document.getElementById('editor').style.display = 'block';
     renderPlayer();
   } catch (e) {
@@ -372,6 +456,7 @@ function renderPlayer() {
   renderKungfu();
   renderItems();
   renderFavor();
+  renderAllNameTables();
 }
 
 function renderArrayFields(containerId, baseArr, maxArr, totalArr, baseKey, labels) {
@@ -448,14 +533,15 @@ function renderTalents() {
     el.innerHTML = '<div style="color:#666;padding:10px">尚無天賦</div>';
     return;
   }
-  el.innerHTML = list.map((t, i) => `
-    <div class="list-item">
-      <span class="name">天賦 ID ${t.tagID}</span>
+  el.innerHTML = list.map((t, i) => {
+    const nm = getName('tag', t.tagID);
+    return `<div class="list-item">
+      <span class="name">${nm ? nm + ' ' : ''}<span style="color:#666;font-size:.78em">ID ${t.tagID}</span></span>
       <span class="meta">leftTime:</span>
       <input type="number" value="${t.leftTime}" onchange="updateTalentLeftTime(${i}, this.value)">
       <button class="btn-danger" onclick="removeTalent(${i})">移除</button>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 function addTalent() {
@@ -494,15 +580,16 @@ function renderKungfu() {
     el.innerHTML = '<div style="color:#666;padding:10px">尚無武功</div>';
     return;
   }
-  el.innerHTML = list.map((k, i) => `
-    <div class="list-item">
-      <span class="name">武功 ID ${k.skillID}</span>
+  el.innerHTML = list.map((k, i) => {
+    const nm = getName('kungfu', k.skillID);
+    return `<div class="list-item">
+      <span class="name">${nm ? nm + ' ' : ''}<span style="color:#666;font-size:.78em">ID ${k.skillID}</span></span>
       <span class="meta">${k.equiped ? '🟢 已裝備' : ''}</span>
       <span class="meta">Lv:</span>
       <input type="number" value="${k.lv}" min="0" max="10" onchange="updateKungfuLv(${i}, this.value)">
       <button class="btn-danger" onclick="removeKungfu(${i})">移除</button>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 function addKungfu() {
@@ -558,7 +645,7 @@ function renderItems() {
   }
   el.innerHTML = filtered.map(({ it, i }) => `
     <div class="list-item">
-      <span class="name">${it.name || '(無名)'} <span style="color:#666;font-size:.75em">ID ${it.itemID}</span></span>
+      <span class="name">${it.name || getName('item', it.itemID) || '(無名)'} <span style="color:#666;font-size:.75em">ID ${it.itemID}</span></span>
       <span class="meta">類型 ${it.type}/${it.subType}</span>
       <span class="meta">Lv:</span>
       <input type="number" value="${it.itemLv||0}" onchange="updateItem(${i},'itemLv',this.value)">
@@ -649,6 +736,133 @@ function setAllFavor(v) {
   }
   renderFavor();
   alert(`已套用到 ${count} 個 NPC`);
+}
+
+// ===== Names Dictionary =====
+function renderAllNameTables() {
+  renderNameTable('tag');
+  renderNameTable('kungfu');
+  renderNameTable('item');
+}
+
+function renderNameTable(kind) {
+  const containers = { tag: 'tagNameList', kungfu: 'kungfuNameList', item: 'itemNameList' };
+  const badges = { tag: 'namesTagBadge', kungfu: 'namesKungfuBadge', item: 'namesItemBadge' };
+  const filterIds = { tag: 'filterTag', kungfu: 'filterKungfu', item: 'filterItem' };
+  const unnamedIds = { tag: 'onlyUnnamedTag', kungfu: 'onlyUnnamedKungfu', item: null };
+  const el = document.getElementById(containers[kind]);
+  if (!el) return;
+  const ids = [...observedIDs[kind]].sort((a, b) => a - b);
+  const total = ids.length;
+  const named = ids.filter(id => nameDict[kind][id]).length;
+  document.getElementById(badges[kind]).textContent = `${named} / ${total} 已命名`;
+  const q = (document.getElementById(filterIds[kind])?.value || '').toLowerCase();
+  const unnamed = unnamedIds[kind] ? document.getElementById(unnamedIds[kind])?.checked : false;
+  const filtered = ids.filter(id => {
+    if (unnamed && nameDict[kind][id]) return false;
+    if (!q) return true;
+    return String(id).includes(q) || (nameDict[kind][id] || '').toLowerCase().includes(q);
+  });
+  if (filtered.length === 0) {
+    el.innerHTML = '<div style="color:#666;padding:10px">沒有匹配</div>';
+    return;
+  }
+  el.innerHTML = filtered.map(id => `
+    <div class="list-item">
+      <span class="name" style="min-width:60px;flex:0 0 auto"><span style="color:#666;font-size:.85em">ID ${id}</span></span>
+      <input type="text" value="${escapeHtmlAttr(nameDict[kind][id] || '')}" placeholder="輸入名稱..." oninput="updateName('${kind}', ${id}, this.value)">
+    </div>
+  `).join('');
+}
+
+function escapeHtmlAttr(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+function updateName(kind, id, val) {
+  const v = (val || '').trim();
+  if (v) nameDict[kind][id] = v;
+  else delete nameDict[kind][id];
+  saveNames();
+  // Update badge live
+  const ids = [...observedIDs[kind]];
+  const named = ids.filter(x => nameDict[kind][x]).length;
+  const badges = { tag: 'namesTagBadge', kungfu: 'namesKungfuBadge', item: 'namesItemBadge' };
+  document.getElementById(badges[kind]).textContent = `${named} / ${ids.length} 已命名`;
+}
+
+function autoLearnItemNames() {
+  let learned = 0;
+  for (const h of (heroData || [])) {
+    if (!h) continue;
+    const ild = h.itemListData || {};
+    for (const it of (ild.allItem || [])) {
+      if (it && it.itemID != null && it.name && !nameDict.item[it.itemID]) {
+        nameDict.item[it.itemID] = it.name;
+        learned++;
+      }
+    }
+  }
+  saveNames();
+  renderNameTable('item');
+  showNamesStatus('success', `✓ 學會 ${learned} 個新物品名稱`);
+}
+
+function exportNames() {
+  const data = JSON.stringify(nameDict, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'lylzz-names-' + new Date().toISOString().slice(0, 10) + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  showNamesStatus('success', '✓ 匯出完成');
+}
+
+async function importNames(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const imported = JSON.parse(text);
+    let merged = 0;
+    for (const kind of ['tag', 'kungfu', 'item']) {
+      const m = imported[kind] || {};
+      for (const id of Object.keys(m)) {
+        if (m[id] && !nameDict[kind][id]) {
+          nameDict[kind][id] = m[id];
+          merged++;
+        }
+      }
+    }
+    saveNames();
+    renderAllNameTables();
+    renderTalents();
+    renderKungfu();
+    renderItems();
+    showNamesStatus('success', `✓ 匯入完成，新增 ${merged} 個名稱（不覆蓋既有）`);
+  } catch (err) {
+    showNamesStatus('error', '匯入失敗：' + err.message);
+  }
+  e.target.value = '';
+}
+
+function clearAllNames() {
+  if (!confirm('清空你所有的對照表？（無法復原，記得先匯出備份）')) return;
+  nameDict = { tag: {}, kungfu: {}, item: {} };
+  saveNames();
+  renderAllNameTables();
+  renderTalents();
+  renderKungfu();
+  renderItems();
+  showNamesStatus('info', '對照表已清空');
+}
+
+function showNamesStatus(kind, msg) {
+  const el = document.getElementById('namesStatus');
+  el.className = 'status show ' + kind;
+  el.textContent = msg;
 }
 
 // ===== Download =====
