@@ -84,9 +84,10 @@ input:focus{outline:none;border-color:#fbbf24;background:rgba(255,255,255,0.09)}
   <div class="section" id="loaderSec">
     <h2>📁 載入存檔</h2>
     <div class="drop-zone" id="dropZone">
-      <p>把 Hero 檔案拖進來，或點此選檔</p>
-      <p class="hint">存檔位置：<code>[遊戲安裝目錄]\LongYinLiZhiZhuan_Data\Save\SaveSlot1\Hero</code></p>
-      <input type="file" id="fileInput" style="display:none">
+      <p>把 Hero 和 Save 兩個檔一起拖進來（或點此選擇多個檔）</p>
+      <p class="hint">存檔位置：<code>[遊戲安裝目錄]\LongYinLiZhiZhuan_Data\Save\SaveSlot1\</code></p>
+      <p class="hint">Hero = 角色資料 / Save = 世界狀態（含其他門派貢獻）。兩個都丟更完整。</p>
+      <input type="file" id="fileInput" multiple style="display:none">
     </div>
     <div class="status" id="loadStatus"></div>
   </div>
@@ -97,8 +98,11 @@ input:focus{outline:none;border-color:#fbbf24;background:rgba(255,255,255,0.09)}
     <div class="section">
       <h2>👤 玩家資訊 <span class="badge" id="playerBadge"></span></h2>
       <div class="summary-line" id="playerSummary"></div>
-      <button class="btn btn-success" onclick="downloadModified()">💾 下載修改後的 Hero 檔</button>
-      <span style="color:#666;font-size:.82em;margin-left:10px">下載後覆蓋原 Hero 檔，重開遊戲讀檔即可</span>
+      <div class="toolbar">
+        <button class="btn btn-success" onclick="downloadModified('hero')">💾 下載修改後的 Hero</button>
+        <button class="btn btn-success" id="dlSaveBtn" onclick="downloadModified('save')" style="display:none">💾 下載修改後的 Save</button>
+        <span style="color:#666;font-size:.82em">下載後覆蓋原檔，先**關遊戲**再覆蓋，再重開讀檔</span>
+      </div>
     </div>
 
     <!-- Tabs -->
@@ -111,6 +115,7 @@ input:focus{outline:none;border-color:#fbbf24;background:rgba(255,255,255,0.09)}
       <button data-tab="kungfu" onclick="switchTab('kungfu')">武功</button>
       <button data-tab="items" onclick="switchTab('items')">物品</button>
       <button data-tab="favor" onclick="switchTab('favor')">NPC 好感度</button>
+      <button data-tab="forces" onclick="switchTab('forces')">🏯 門派貢獻</button>
       <button data-tab="names" onclick="switchTab('names')">📚 對照表</button>
     </div>
 
@@ -282,6 +287,23 @@ input:focus{outline:none;border-color:#fbbf24;background:rgba(255,255,255,0.09)}
       </div>
     </div>
 
+    <!-- Forces / faction contributions (requires Save file) -->
+    <div class="tab-panel" id="tab-forces">
+      <div class="section">
+        <h2>🏯 各門派貢獻（30 個門派）<span class="badge" id="forcesBadge">未載入 Save</span></h2>
+        <div class="help">
+          自己門派的貢獻在「基本」分頁的 forceContribution（Hero 檔）。<br>
+          這裡是<b>對其他門派</b>的貢獻（playerOutForceContribution，Save 檔）— 影響加入新門派的資格、外門任務獎勵。<br>
+          要使用此功能，請<b>同時載入 Save 檔</b>（Hero 旁邊那個檔，沒有副檔名）。
+        </div>
+        <div class="toolbar" style="margin-top:10px">
+          <button class="btn btn-secondary" onclick="setAllForcesContribution(9999)" id="allForcesBtn">所有門派貢獻 = 9999</button>
+          <button class="btn btn-secondary" onclick="setAllForcesContribution(99999)">所有門派貢獻 = 99999</button>
+        </div>
+        <div id="forcesList" class="scrollable" style="max-height:500px;margin-top:10px"></div>
+      </div>
+    </div>
+
     <!-- ID Names dictionary -->
     <div class="tab-panel" id="tab-names">
       <div class="section">
@@ -336,9 +358,10 @@ input:focus{outline:none;border-color:#fbbf24;background:rgba(255,255,255,0.09)}
 </div>
 
 <script>
-let heroData = null;       // Full parsed JSON array
+let heroData = null;       // Hero file: array of all heroes
+let saveData = null;       // Save file: world state object
 let player = null;         // Reference to player record (heroID 0)
-let originalFileName = 'Hero';
+let originalNames = { hero: 'Hero', save: 'Save' };
 
 // Name dictionary: tag/kungfu/item ID → user-supplied or save-derived names
 let nameDict = { tag: {}, kungfu: {}, item: {} };
@@ -362,9 +385,16 @@ const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
 ['dragenter','dragover'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.add('dragover'); }));
 ['dragleave','drop'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.remove('dragover'); }));
-dropZone.addEventListener('drop', ev => { if (ev.dataTransfer.files[0]) loadFile(ev.dataTransfer.files[0]); });
+dropZone.addEventListener('drop', ev => { loadFiles([...(ev.dataTransfer.files || [])]); });
 dropZone.addEventListener('click', () => fileInput.click());
-fileInput.addEventListener('change', ev => { if (ev.target.files[0]) loadFile(ev.target.files[0]); });
+fileInput.addEventListener('change', ev => { loadFiles([...(ev.target.files || [])]); });
+
+async function loadFiles(files) {
+  if (!files || files.length === 0) return;
+  for (const f of files) {
+    await loadFile(f);
+  }
+}
 
 function showLoadStatus(kind, msg) {
   const el = document.getElementById('loadStatus');
@@ -373,39 +403,47 @@ function showLoadStatus(kind, msg) {
 }
 
 async function loadFile(file) {
-  originalFileName = file.name;
   showLoadStatus('info', `讀取 ${file.name} (${(file.size/1024/1024).toFixed(1)} MB)...`);
   try {
     const text = await file.text();
-    heroData = JSON.parse(text);
-    if (!Array.isArray(heroData)) throw new Error('檔案不是陣列格式（不是 Hero 檔？）');
-    // Find player by heroID 0
-    player = heroData.find(h => h && h.heroID === 0);
-    if (!player) throw new Error('找不到玩家（heroID 0）');
-    // Scan all heroes for observed IDs + auto-learn item names from save
-    observedIDs = { tag: new Set(), kungfu: new Set(), item: new Set() };
-    for (const h of heroData) {
-      if (!h) continue;
-      for (const t of (h.heroTagData || [])) if (t && 'tagID' in t) observedIDs.tag.add(t.tagID);
-      for (const k of (h.kungfuSkills || [])) if (k && 'skillID' in k) observedIDs.kungfu.add(k.skillID);
-      const ild = h.itemListData || {};
-      for (const it of (ild.allItem || [])) {
-        if (it && 'itemID' in it) {
-          observedIDs.item.add(it.itemID);
-          // Auto-learn name from save (since items embed names)
-          if (it.name && !nameDict.item[it.itemID]) nameDict.item[it.itemID] = it.name;
+    const parsed = JSON.parse(text);
+    // Detect by structure: Array = Hero, Object with Forces = Save
+    if (Array.isArray(parsed)) {
+      heroData = parsed;
+      originalNames.hero = file.name;
+      player = heroData.find(h => h && h.heroID === 0);
+      if (!player) throw new Error('找不到玩家（heroID 0）');
+      observedIDs = { tag: new Set(), kungfu: new Set(), item: new Set() };
+      for (const h of heroData) {
+        if (!h) continue;
+        for (const t of (h.heroTagData || [])) if (t && 'tagID' in t) observedIDs.tag.add(t.tagID);
+        for (const k of (h.kungfuSkills || [])) if (k && 'skillID' in k) observedIDs.kungfu.add(k.skillID);
+        const ild = h.itemListData || {};
+        for (const it of (ild.allItem || [])) {
+          if (it && 'itemID' in it) {
+            observedIDs.item.add(it.itemID);
+            if (it.name && !nameDict.item[it.itemID]) nameDict.item[it.itemID] = it.name;
+          }
         }
       }
+      saveNames();
+    } else if (parsed && parsed.Forces) {
+      saveData = parsed;
+      originalNames.save = file.name;
+    } else {
+      throw new Error(`${file.name} 不是 Hero 也不是 Save 檔`);
     }
-    saveNames();
-    showLoadStatus('success', `✓ 載入成功：${heroData.length} 個角色｜學會 ${Object.keys(nameDict.item).length} 個物品名稱`);
+    // Compose status
+    const parts = [];
+    if (heroData) parts.push(`Hero: ${heroData.length} 個角色`);
+    if (saveData) parts.push(`Save: ${saveData.Forces.length} 個門派`);
+    showLoadStatus('success', '✓ ' + parts.join('｜'));
     document.getElementById('editor').style.display = 'block';
-    renderPlayer();
+    document.getElementById('dlSaveBtn').style.display = saveData ? 'inline-block' : 'none';
+    if (player) renderPlayer();
+    renderForces();
   } catch (e) {
-    showLoadStatus('error', '解析失敗：' + e.message);
-    heroData = null;
-    player = null;
-    document.getElementById('editor').style.display = 'none';
+    showLoadStatus('error', `${file.name}: ` + e.message);
   }
 }
 
@@ -738,6 +776,47 @@ function setAllFavor(v) {
   alert(`已套用到 ${count} 個 NPC`);
 }
 
+// ===== Forces (Save file) =====
+function renderForces() {
+  const el = document.getElementById('forcesList');
+  const badge = document.getElementById('forcesBadge');
+  if (!saveData || !saveData.Forces) {
+    if (el) el.innerHTML = '<div style="color:#666;padding:14px">尚未載入 Save 檔。請把 Save 檔（跟 Hero 同一個資料夾）也拖進上方載入區。</div>';
+    if (badge) badge.textContent = '未載入 Save';
+    return;
+  }
+  const ownForceID = player ? player.belongForceID : -1;
+  badge.textContent = saveData.Forces.length + ' 個門派';
+  el.innerHTML = saveData.Forces
+    .slice()
+    .sort((a, b) => a.forceID - b.forceID)
+    .map(f => {
+      const isOwn = f.forceID === ownForceID;
+      const ownTag = isOwn ? '<span style="color:#34d399;font-size:.78em;margin-left:6px">(自己門派)</span>' : '';
+      const ownNote = isOwn ? '<div style="color:#666;font-size:.74em;margin-top:2px">這欄是「對自己門派的外部貢獻」，自己門派貢獻請在「基本」分頁改 forceContribution</div>' : '';
+      return `<div class="list-item" style="flex-direction:column;align-items:stretch">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%">
+          <span class="name" style="flex:1;min-width:120px">${f.forceName} <span style="color:#666;font-size:.78em">forceID ${f.forceID} · Lv ${f.forceLv}</span>${ownTag}</span>
+          <span class="meta">外門貢獻:</span>
+          <input type="number" step="any" value="${f.playerOutForceContribution ?? 0}" onchange="updateForceContribution(${f.forceID}, this.value)" style="width:120px">
+        </div>
+        ${ownNote}
+      </div>`;
+    }).join('');
+}
+
+function updateForceContribution(forceID, val) {
+  if (!saveData) return;
+  const f = saveData.Forces.find(x => x.forceID === forceID);
+  if (f) f.playerOutForceContribution = Number(val);
+}
+
+function setAllForcesContribution(v) {
+  if (!saveData || !saveData.Forces) { alert('未載入 Save 檔'); return; }
+  for (const f of saveData.Forces) f.playerOutForceContribution = v;
+  renderForces();
+}
+
 // ===== Names Dictionary =====
 function renderAllNameTables() {
   renderNameTable('tag');
@@ -866,14 +945,23 @@ function showNamesStatus(kind, msg) {
 }
 
 // ===== Download =====
-function downloadModified() {
-  if (!heroData) return;
-  const json = JSON.stringify(heroData);
+function downloadModified(which) {
+  let data, filename;
+  if (which === 'hero') {
+    if (!heroData) return;
+    data = heroData;
+    filename = originalNames.hero || 'Hero';
+  } else if (which === 'save') {
+    if (!saveData) return;
+    data = saveData;
+    filename = originalNames.save || 'Save';
+  } else return;
+  const json = JSON.stringify(data);
   const blob = new Blob([json], { type: 'application/octet-stream' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = originalFileName;
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
 }
